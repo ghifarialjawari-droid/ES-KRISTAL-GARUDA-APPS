@@ -1,0 +1,2291 @@
+import React, { useState, useMemo, useEffect } from "react";
+import {
+  Snowflake,
+  Settings,
+  Download,
+  X,
+  Trash2,
+  PlusCircle,
+  MinusCircle,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Wallet,
+  PackageSearch,
+  Printer,
+  LogIn,
+  LogOut,
+  Users,
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  Pencil,
+  Smartphone,
+  Sparkles,
+  Database,
+  WifiOff,
+  RefreshCw,
+  Info,
+  AlertTriangle,
+} from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+
+// ==========================================
+// 🔴 PENGATURAN DATABASE GOOGLE APPS SCRIPT
+// ==========================================
+// Masukkan URL Web App Google Apps Script Anda di sini.
+const GAS_URL =
+  "https://script.google.com/macros/s/AKfycbxhwZL3P4KWLp8r_LoUt6Oipb7TExmRQVM7PEUbgqyGqMp3hT4BnpRGOcGGDM5oxFdW/exec";
+
+// ==========================================
+// GEMINI API & AI UTILS
+// ==========================================
+const apiKey =
+  "https://script.google.com/macros/s/AKfycbxhwZL3P4KWLp8r_LoUt6Oipb7TExmRQVM7PEUbgqyGqMp3hT4BnpRGOcGGDM5oxFdW/exec";
+
+async function fetchGeminiAI(prompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+  const payload = { contents: [{ parts: [{ text: prompt }] }] };
+
+  let delay = 1000;
+  for (let i = 0; i < 6; i++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const data = await res.json();
+      return (
+        data.candidates?.[0]?.content?.parts?.[0]?.text ||
+        "Analisis tidak tersedia."
+      );
+    } catch (err) {
+      if (i === 5) throw err;
+      await new Promise((r) => setTimeout(r, delay));
+      delay *= 2;
+    }
+  }
+}
+
+// ==========================================
+// UTILITAS DASAR & FILTER TANGGAL (ANTI-BUG)
+// ==========================================
+const IceLogo = ({ className = "w-10 h-10 text-sky-500" }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+  </svg>
+);
+
+const pad = (n) => String(n).padStart(2, "0");
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+const currentMonthStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+};
+const formatRupiah = (n) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
+
+// PERBAIKAN: Fungsi penarik tanggal yang kebal format Google Sheets
+const getSafeDate = (val) => {
+  if (!val) return "";
+  const strVal = String(val);
+  try {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+  } catch (e) {}
+  if (strVal.includes("T")) return strVal.split("T")[0];
+  return strVal.substring(0, 10);
+};
+const formatTanggal = (iso) => {
+  if (!iso) return "-";
+  const aman = getSafeDate(iso);
+  const parts = aman.split("-");
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return aman;
+};
+
+function hitungHargaEs(jumlahInput) {
+  const q = parseFloat(jumlahInput);
+  if (!q || q <= 0) return 0;
+  const whole = Math.floor(q + 1e-9);
+  let frac = Math.round((q - whole) * 100) / 100;
+  let total = whole * 20000;
+  if (frac > 0.001) {
+    const special = {
+      0.7: 15000,
+      0.5: 13000,
+      0.3: 10000,
+      0.25: 7000,
+      0.15: 5000,
+    };
+    const matchedKey = Object.keys(special).find(
+      (k) => Math.abs(frac - parseFloat(k)) < 0.005
+    );
+    if (matchedKey) total += special[matchedKey];
+    else total += Math.round(frac / 0.1) * 2000;
+  }
+  return total;
+}
+
+function computeStockData(stockRecords, sales) {
+  const byCabang = {};
+  stockRecords.forEach((r) => {
+    byCabang[r.cabang] = byCabang[r.cabang] || [];
+    byCabang[r.cabang].push(r);
+  });
+  let result = [];
+  Object.keys(byCabang).forEach((cabang) => {
+    const recs = byCabang[cabang]
+      .slice()
+      .sort((a, b) =>
+        getSafeDate(a.tanggal).localeCompare(getSafeDate(b.tanggal))
+      );
+    let prevSisaActual = 0;
+    recs.forEach((r, idx) => {
+      const esMasuk = parseFloat(r.esMasukHariIni) || 0;
+      const sisaActual = parseFloat(r.sisaEsActual) || 0;
+      const terjual = sales
+        .filter(
+          (s) =>
+            s.cabang === cabang &&
+            getSafeDate(s.tanggal) === getSafeDate(r.tanggal)
+        )
+        .reduce((sum, s) => sum + parseFloat(s.jumlah || 0), 0);
+      const sisaKemarin = idx === 0 ? 0 : prevSisaActual;
+      const jumlahEsMasuk = esMasuk + sisaKemarin;
+      const sisaSistem = +(jumlahEsMasuk - terjual).toFixed(2);
+      const susut = +(sisaSistem - sisaActual).toFixed(2);
+
+      result.push({
+        ...r,
+        esMasuk,
+        sisaActual,
+        terjual,
+        sisaKemarin,
+        jumlahEsMasuk,
+        sisaSistem,
+        susut,
+      });
+      prevSisaActual = sisaActual;
+    });
+  });
+  return result.sort((a, b) =>
+    (getSafeDate(b.tanggal) + b.cabang).localeCompare(
+      getSafeDate(a.tanggal) + a.cabang
+    )
+  );
+}
+
+// ==========================================
+// KOMPONEN UI KUSTOM (MENGGANTIKAN ALERT/CONFIRM)
+// ==========================================
+const CustomDialog = ({ dialog, closeDialog }) => {
+  if (!dialog.show) return null;
+  const [inputValue, setInputValue] = useState("");
+
+  const handleConfirm = () => {
+    if (dialog.type === "prompt") dialog.onConfirm(inputValue);
+    else if (dialog.onConfirm) dialog.onConfirm();
+    else closeDialog();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
+        <h3
+          className={`font-bold text-lg mb-2 flex items-center gap-2 ${
+            dialog.type === "error" ? "text-red-600" : "text-slate-800"
+          }`}
+        >
+          {dialog.type === "error" ? (
+            <AlertTriangle className="w-5 h-5" />
+          ) : (
+            <Info className="w-5 h-5 text-sky-500" />
+          )}
+          {dialog.title || "Informasi"}
+        </h3>
+        <p className="text-slate-600 text-sm mb-5 leading-relaxed">
+          {dialog.msg}
+        </p>
+
+        {dialog.type === "prompt" && (
+          <input
+            autoFocus
+            type="text"
+            placeholder="Ketik di sini..."
+            className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm mb-5 focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/20 transition-all"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
+          />
+        )}
+
+        <div className="flex justify-end gap-3">
+          {dialog.type !== "alert" && dialog.type !== "error" && (
+            <button
+              onClick={closeDialog}
+              className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
+            >
+              Batal
+            </button>
+          )}
+          <button
+            onClick={handleConfirm}
+            className={`px-5 py-2.5 text-sm font-bold text-white rounded-xl transition-all shadow-lg ${
+              dialog.type === "error" || dialog.isDestructive
+                ? "bg-red-500 hover:bg-red-600 shadow-red-500/30"
+                : "bg-sky-500 hover:bg-sky-600 shadow-sky-500/30"
+            }`}
+          >
+            {dialog.type === "alert" || dialog.type === "error"
+              ? "Mengerti"
+              : "Konfirmasi"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// HALAMAN LOGIN
+// ==========================================
+function LoginPage({ onLogin, installPrompt, isOnline, showToast }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const submit = async () => {
+    if (!username.trim() || !password.trim()) {
+      setError("Masukkan username dan password!");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      if (GAS_URL) {
+        const res = await fetch(GAS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "login",
+            data: { username: username.trim(), password: password },
+          }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showToast("Berhasil Login", "success");
+          onLogin(data.user);
+        } else {
+          setError(data.error || "Username atau password salah.");
+        }
+      } else {
+        const localUsers = JSON.parse(
+          localStorage.getItem("es_kristal_users") || "[]"
+        );
+        if (localUsers.length === 0) {
+          localUsers.push({
+            id: "u1",
+            username: "admin",
+            password: "admin123",
+            nama: "Super Admin",
+            role: "admin",
+            cabang: "Pusat",
+          });
+          localStorage.setItem("es_kristal_users", JSON.stringify(localUsers));
+        }
+
+        const user = localUsers.find(
+          (u) => u.username === username.trim() && u.password === password
+        );
+        if (user) {
+          showToast("Login Mode Lokal Berhasil", "success");
+          onLogin(user);
+        } else {
+          setError("Username atau password salah (Mode Lokal).");
+        }
+      }
+    } catch (err) {
+      setError("Gagal terhubung ke server. Periksa koneksi internet Anda.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-sky-900 to-sky-700 p-4 relative overflow-hidden">
+      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-sky-500/20 rounded-full blur-3xl"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-500/20 rounded-full blur-3xl"></div>
+
+      <div className="w-full max-w-sm relative z-10">
+        <div className="text-center mb-8 flex flex-col items-center">
+          <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-md mb-4 shadow-xl border border-white/20">
+            <IceLogo className="w-16 h-16 text-sky-300 drop-shadow-lg" />
+          </div>
+          <h1 className="text-2xl font-bold text-white tracking-wide">
+            Es Kristal Garuda
+          </h1>
+          <div className="flex items-center justify-center gap-2 mt-2">
+            {isOnline ? (
+              <span className="flex items-center gap-1.5 text-xs font-medium bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full border border-emerald-500/30">
+                <Database className="w-3.5 h-3.5" /> Tersambung Cloud
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs font-medium bg-amber-500/20 text-amber-300 px-3 py-1 rounded-full border border-amber-500/30">
+                <WifiOff className="w-3.5 h-3.5" /> Mode Lokal Offline
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-7 space-y-5 border border-white/50"
+        >
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Username
+            </label>
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={isLoading}
+              className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 transition-all bg-slate-50"
+              placeholder="Masukkan username"
+              autoComplete="username"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                type={showPw ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 transition-all bg-slate-50 pr-12"
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((s) => !s)}
+                disabled={isLoading}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-sky-600 transition-colors"
+              >
+                {showPw ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-red-600 text-xs font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 flex items-center gap-2">
+              ⚠️ {error}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={submit}
+            disabled={isLoading}
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 shadow-lg shadow-sky-500/30 transition-all text-white text-sm font-bold rounded-xl py-3.5 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {isLoading ? (
+              <RefreshCw className="w-5 h-5 animate-spin" />
+            ) : (
+              <LogIn className="w-5 h-5" />
+            )}
+            {isLoading ? "Memverifikasi..." : "Masuk ke Sistem"}
+          </button>
+
+          {installPrompt && (
+            <button
+              type="button"
+              onClick={installPrompt}
+              className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all text-sm font-semibold rounded-xl py-3 mt-2 border border-slate-300"
+            >
+              <Smartphone className="w-4 h-4" /> Install Aplikasi (PWA)
+            </button>
+          )}
+
+          {!GAS_URL && (
+            <div className="pt-4 border-t border-slate-200 text-xs text-slate-500 space-y-1 text-center bg-slate-50 rounded-lg p-3">
+              <p className="font-semibold text-slate-700 mb-1">
+                Demo Akun (Mode Lokal):
+              </p>
+              <p>
+                Admin: <b className="text-sky-600">admin</b> / admin123
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// APLIKASI UTAMA
+// ==========================================
+export default function App() {
+  const isOnline = Boolean(GAS_URL);
+  const [appLoading, setAppLoading] = useState(false);
+
+  // State Custom Alert/Confirm & Toast
+  const [dialog, setDialog] = useState({
+    show: false,
+    type: "",
+    msg: "",
+    title: "",
+    onConfirm: null,
+    isDestructive: false,
+  });
+  const closeDialog = () =>
+    setDialog({
+      show: false,
+      type: "",
+      msg: "",
+      title: "",
+      onConfirm: null,
+      isDestructive: false,
+    });
+  const [toast, setToast] = useState({ show: false, msg: "", type: "info" });
+
+  const showToast = (msg, type = "info") => {
+    setToast({ show: true, msg, type });
+    setTimeout(() => setToast({ show: false, msg: "", type: "info" }), 3500);
+  };
+
+  const showAlert = (msg, title = "Perhatian", isError = false) => {
+    setDialog({ show: true, type: isError ? "error" : "alert", msg, title });
+  };
+
+  const [tab, setTab] = useState("kasir");
+  const [cabangList, setCabangList] = useState([
+    "Limbangan",
+    "Wanaraja",
+    "Ciawitali",
+    "Tasik",
+    "Ciamis",
+  ]);
+  const [kategoriList, setKategoriList] = useState([
+    "Transport",
+    "Maintenance",
+    "Marketing",
+    "Bensin",
+    "Gaji",
+    "Bonus",
+  ]);
+
+  const [users, setUsers] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [stockRecords, setStockRecords] = useState([]);
+
+  const [currentUser, setCurrentUser] = useState(null);
+  const isAdmin = currentUser?.role === "admin";
+  const myCabang = currentUser?.cabang || "";
+
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("cabang");
+  const [newCabang, setNewCabang] = useState("");
+  const [newKategori, setNewKategori] = useState("");
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportMonth, setExportMonth] = useState(currentMonthStr());
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+
+  // Form States
+  const [filterDate, setFilterDate] = useState(todayStr());
+  const [filterCabang, setFilterCabang] = useState("Semua Cabang");
+  const [formTab, setFormTab] = useState("penjualan");
+  const [histTab, setHistTab] = useState("pemasukan");
+
+  const emptySaleForm = {
+    tanggal: todayStr(),
+    cabang: "",
+    customer: "",
+    jumlah: "",
+    hargaEs: "",
+    ongkir: "",
+  };
+  const [saleForm, setSaleForm] = useState(emptySaleForm);
+  const emptyExpenseForm = {
+    tanggal: todayStr(),
+    cabang: "",
+    kategori: "",
+    jumlah: "",
+    keterangan: "",
+  };
+  const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
+
+  const [stockFilterDate, setStockFilterDate] = useState(todayStr());
+  const [stockFilterCabang, setStockFilterCabang] = useState("Semua Cabang");
+  const emptyStockForm = {
+    tanggal: todayStr(),
+    cabang: "",
+    esMasukHariIni: "",
+    sisaEsActual: "",
+  };
+  const [stockForm, setStockForm] = useState(emptyStockForm);
+
+  const [reportMonth, setReportMonth] = useState(currentMonthStr());
+  const [chartCabang, setChartCabang] = useState("Semua Cabang");
+
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiInsight, setAiInsight] = useState("");
+
+  useEffect(() => {
+    const handleBeforeInstall = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+    return () =>
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+  }, []);
+
+  const installPWA = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(() => setDeferredPrompt(null));
+    } else {
+      showAlert(
+        "Gunakan menu 'Tambahkan ke Layar Utama' (Add to Home Screen) pada browser HP Anda untuk menginstal.",
+        "Cara Install"
+      );
+    }
+  };
+
+  // --- DATABASE SYNC LOGIC ---
+  const loadData = async () => {
+    setAppLoading(true);
+    try {
+      if (GAS_URL) {
+        // PERBAIKAN: Parameter ?t=... memaksa browser menghapus cache lama
+        const res = await fetch(`${GAS_URL}?t=${new Date().getTime()}`, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "getData" }),
+        });
+        const resData = await res.json();
+
+        if (resData.success) {
+          setUsers(resData.users || []);
+          setSales(resData.sales || []);
+          setExpenses(resData.expenses || []);
+          setStockRecords(resData.stocks || []);
+
+          localStorage.setItem(
+            "es_kristal_users",
+            JSON.stringify(resData.users || [])
+          );
+          localStorage.setItem(
+            "es_kristal_sales",
+            JSON.stringify(resData.sales || [])
+          );
+          localStorage.setItem(
+            "es_kristal_expenses",
+            JSON.stringify(resData.expenses || [])
+          );
+          localStorage.setItem(
+            "es_kristal_stocks",
+            JSON.stringify(resData.stocks || [])
+          );
+        }
+      } else {
+        setUsers(JSON.parse(localStorage.getItem("es_kristal_users") || "[]"));
+        setSales(JSON.parse(localStorage.getItem("es_kristal_sales") || "[]"));
+        setExpenses(
+          JSON.parse(localStorage.getItem("es_kristal_expenses") || "[]")
+        );
+        setStockRecords(
+          JSON.parse(localStorage.getItem("es_kristal_stocks") || "[]")
+        );
+      }
+    } catch (e) {
+      console.error("Gagal load data:", e);
+      showAlert(
+        "Gagal memuat data terbaru. Memuat cadangan offline.",
+        "Koneksi Bermasalah",
+        true
+      );
+      setUsers(JSON.parse(localStorage.getItem("es_kristal_users") || "[]"));
+      setSales(JSON.parse(localStorage.getItem("es_kristal_sales") || "[]"));
+      setExpenses(
+        JSON.parse(localStorage.getItem("es_kristal_expenses") || "[]")
+      );
+      setStockRecords(
+        JSON.parse(localStorage.getItem("es_kristal_stocks") || "[]")
+      );
+    } finally {
+      setAppLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      loadData();
+    }
+  }, [currentUser]);
+
+  const dbSave = async (table, item) => {
+    const tableMap = {
+      Users: setUsers,
+      Sales: setSales,
+      Expenses: setExpenses,
+      Stocks: setStockRecords,
+    };
+    const localKey = {
+      Users: "es_kristal_users",
+      Sales: "es_kristal_sales",
+      Expenses: "es_kristal_expenses",
+      Stocks: "es_kristal_stocks",
+    };
+
+    tableMap[table]((prev) => {
+      const exists = prev.find((x) => x.id === item.id);
+      const newData = exists
+        ? prev.map((x) => (x.id === item.id ? item : x))
+        : [...prev, item];
+      localStorage.setItem(localKey[table], JSON.stringify(newData));
+      return newData;
+    });
+
+    if (GAS_URL) {
+      try {
+        const res = await fetch(GAS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "save", table, data: item }),
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error("Gagal server");
+      } catch (e) {
+        showToast("Tersimpan offline, gagal ke Cloud.", "error");
+        return;
+      }
+    }
+    showToast("Data tersimpan", "success");
+    loadData(); // REFRESH OTOMATIS SETELAH SIMPAN
+  };
+
+  const dbDelete = async (table, id) => {
+    const tableMap = {
+      Users: setUsers,
+      Sales: setSales,
+      Expenses: setExpenses,
+      Stocks: setStockRecords,
+    };
+    const localKey = {
+      Users: "es_kristal_users",
+      Sales: "es_kristal_sales",
+      Expenses: "es_kristal_expenses",
+      Stocks: "es_kristal_stocks",
+    };
+
+    tableMap[table]((prev) => {
+      const newData = prev.filter((x) => x.id !== id);
+      localStorage.setItem(localKey[table], JSON.stringify(newData));
+      return newData;
+    });
+
+    if (GAS_URL) {
+      try {
+        await fetch(GAS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "delete", table, data: { id } }),
+        });
+      } catch (e) {
+        showToast("Gagal menghapus di server.", "error");
+        return;
+      }
+    }
+    showToast("Data dihapus", "success");
+    loadData(); // REFRESH OTOMATIS SETELAH HAPUS
+  };
+
+  // UI Actions
+  const handleCabangSelect = (val, form, setForm) => {
+    if (val === "__new__") {
+      setDialog({
+        show: true,
+        type: "prompt",
+        msg: "Masukkan nama cabang baru:",
+        title: "Cabang Baru",
+        onConfirm: (name) => {
+          if (name && name.trim()) {
+            const trimmed = name.trim();
+            setCabangList((prev) =>
+              prev.includes(trimmed) ? prev : [...prev, trimmed]
+            );
+            setForm({ ...form, cabang: trimmed });
+          }
+          closeDialog();
+        },
+      });
+    } else {
+      setForm({ ...form, cabang: val });
+    }
+  };
+
+  const handleKategoriSelect = (val, form, setForm) => {
+    if (val === "__new__") {
+      setDialog({
+        show: true,
+        type: "prompt",
+        msg: "Masukkan nama kategori baru:",
+        title: "Kategori Baru",
+        onConfirm: (name) => {
+          if (name && name.trim()) {
+            const trimmed = name.trim();
+            setKategoriList((prev) =>
+              prev.includes(trimmed) ? prev : [...prev, trimmed]
+            );
+            setForm({ ...form, kategori: trimmed });
+          }
+          closeDialog();
+        },
+      });
+    } else {
+      setForm({ ...form, kategori: val });
+    }
+  };
+
+  const addSale = () => {
+    const cabangValue = isAdmin ? saleForm.cabang : myCabang;
+    if (!cabangValue || !saleForm.jumlah || parseFloat(saleForm.jumlah) <= 0) {
+      return showAlert(
+        "Harap lengkapi isian Cabang dan Jumlah Qty.",
+        "Data Belum Lengkap",
+        true
+      );
+    }
+    const jumlah = parseFloat(saleForm.jumlah) || 0;
+    const hargaEs = parseFloat(saleForm.hargaEs) || 0;
+    const ongkir = parseFloat(saleForm.ongkir) || 0;
+    const newSale = {
+      id: "s_" + Date.now(),
+      tanggal: saleForm.tanggal,
+      cabang: cabangValue,
+      customer: saleForm.customer.trim() || "-",
+      jumlah,
+      hargaEs,
+      ongkir,
+      total: hargaEs + ongkir,
+    };
+
+    dbSave("Sales", newSale);
+    setSaleForm({
+      ...emptySaleForm,
+      tanggal: saleForm.tanggal,
+      cabang: isAdmin ? saleForm.cabang : "",
+    });
+  };
+
+  const addExpense = () => {
+    const cabangValue = isAdmin ? expenseForm.cabang : myCabang;
+    if (
+      !cabangValue ||
+      !expenseForm.kategori ||
+      !expenseForm.jumlah ||
+      parseFloat(expenseForm.jumlah) <= 0
+    ) {
+      return showAlert(
+        "Harap lengkapi isian Cabang, Kategori, dan Nominal.",
+        "Data Belum Lengkap",
+        true
+      );
+    }
+    const newExp = {
+      id: "e_" + Date.now(),
+      tanggal: expenseForm.tanggal,
+      cabang: cabangValue,
+      kategori: expenseForm.kategori,
+      jumlah: parseFloat(expenseForm.jumlah) || 0,
+      keterangan: expenseForm.keterangan.trim() || "-",
+    };
+
+    dbSave("Expenses", newExp);
+    setExpenseForm({
+      ...emptyExpenseForm,
+      tanggal: expenseForm.tanggal,
+      cabang: isAdmin ? expenseForm.cabang : "",
+    });
+  };
+
+  const addStock = () => {
+    const cabangValue = isAdmin ? stockForm.cabang : myCabang;
+    if (!cabangValue)
+      return showAlert("Cabang harus diisi.", "Peringatan", true);
+    const rec = {
+      id: "stk_" + Date.now(),
+      tanggal: stockForm.tanggal,
+      cabang: cabangValue,
+      esMasukHariIni: parseFloat(stockForm.esMasukHariIni) || 0,
+      sisaEsActual: parseFloat(stockForm.sisaEsActual) || 0,
+    };
+
+    dbSave("Stocks", rec);
+    setStockForm({
+      ...emptyStockForm,
+      tanggal: stockForm.tanggal,
+      cabang: isAdmin ? stockForm.cabang : "",
+    });
+  };
+
+  const saveUser = (data) => {
+    if (!data.nama.trim() || !data.username.trim())
+      return showAlert("Nama dan Username Wajib Diisi.", "Gagal", true);
+    const isNew = !data.id;
+    if (isNew && !data.password.trim())
+      return showAlert("Password Wajib Diisi.", "Gagal", true);
+    const uId = isNew ? "u_" + Date.now() : data.id;
+    const existing = users.find((u) => u.id === data.id);
+    const updatedUser = {
+      id: uId,
+      username: data.username,
+      nama: data.nama,
+      role: data.role,
+      cabang: data.role === "admin" ? null : data.cabang,
+      password: isNew || data.password ? data.password : existing?.password,
+    };
+    dbSave("Users", updatedUser);
+    setShowUserModal(false);
+    setEditingUser(null);
+  };
+
+  const removeUser = (id) => {
+    if (currentUser && id === currentUser.id)
+      return showAlert("Tidak bisa hapus akun Anda sendiri.", "Ditolak", true);
+    setDialog({
+      show: true,
+      type: "confirm",
+      isDestructive: true,
+      title: "Hapus Pengguna",
+      msg: "Yakin hapus akun ini?",
+      onConfirm: () => {
+        dbDelete("Users", id);
+        closeDialog();
+      },
+    });
+  };
+
+  const confirmDeleteData = (table, id) => {
+    setDialog({
+      show: true,
+      type: "confirm",
+      isDestructive: true,
+      title: "Hapus Data",
+      msg: "Yakin hapus data ini?",
+      onConfirm: () => {
+        dbDelete(table, id);
+        closeDialog();
+      },
+    });
+  };
+
+  // Kalkulasi Data
+  const effectiveFilterCabang = isAdmin ? filterCabang : myCabang;
+  const filteredSales = useMemo(
+    () =>
+      sales.filter(
+        (s) =>
+          getSafeDate(s.tanggal) === filterDate &&
+          (effectiveFilterCabang === "Semua Cabang" ||
+            s.cabang === effectiveFilterCabang)
+      ),
+    [sales, filterDate, effectiveFilterCabang]
+  );
+  const filteredExpenses = useMemo(
+    () =>
+      expenses.filter(
+        (e) =>
+          getSafeDate(e.tanggal) === filterDate &&
+          (effectiveFilterCabang === "Semua Cabang" ||
+            e.cabang === effectiveFilterCabang)
+      ),
+    [expenses, filterDate, effectiveFilterCabang]
+  );
+
+  const totalEsTerjual = filteredSales.reduce(
+    (a, s) => a + parseFloat(s.jumlah || 0),
+    0
+  );
+  const totalPemasukan = filteredSales.reduce((a, s) => a + s.total, 0);
+  const totalPengeluaran = filteredExpenses.reduce(
+    (a, e) => a + parseFloat(e.jumlah || 0),
+    0
+  );
+  const labaBersih = totalPemasukan - totalPengeluaran;
+
+  const computedStock = useMemo(
+    () => computeStockData(stockRecords, sales),
+    [stockRecords, sales]
+  );
+  const effectiveStockCabang = isAdmin ? stockFilterCabang : myCabang;
+  const filteredStock = computedStock.filter(
+    (r) =>
+      getSafeDate(r.tanggal) === stockFilterDate &&
+      (effectiveStockCabang === "Semua Cabang" ||
+        r.cabang === effectiveStockCabang)
+  );
+
+  const monthlySummary = useMemo(() => {
+    const monthSales = sales.filter((s) =>
+      getSafeDate(s.tanggal).startsWith(reportMonth)
+    );
+    return cabangList.map((cabang) => {
+      const data = monthSales.filter((s) => s.cabang === cabang);
+      return {
+        cabang,
+        esTerjual: data.reduce((a, s) => a + parseFloat(s.jumlah || 0), 0),
+        customer: new Set(data.map((s) => s.customer)).size,
+        pendapatan: data.reduce((a, s) => a + s.total, 0),
+      };
+    });
+  }, [sales, reportMonth, cabangList]);
+
+  const totalRingkasan = monthlySummary.reduce(
+    (acc, r) => ({
+      esTerjual: acc.esTerjual + r.esTerjual,
+      customer: acc.customer + r.customer,
+      pendapatan: acc.pendapatan + r.pendapatan,
+    }),
+    { esTerjual: 0, customer: 0, pendapatan: 0 }
+  );
+
+  const handleGetAIInsight = async () => {
+    setIsAiLoading(true);
+    setAiInsight("");
+    try {
+      const prompt = `Kamu AI Konsultan Bisnis. Analisis singkat (3 paragraf santai & ramah) bisnis "Es Kristal Garuda" bulan ${reportMonth}. Data: Cabang: ${
+        monthlySummary.length
+      }, Es Terjual: ${
+        totalRingkasan.esTerjual
+      }, Pendapatan: Rp ${totalRingkasan.pendapatan.toLocaleString(
+        "id-ID"
+      )}, Pelanggan: ${
+        totalRingkasan.customer
+      }. Beri pujian dan 1-2 saran praktis pemasaran.`;
+      const result = await fetchGeminiAI(prompt);
+      setAiInsight(result);
+    } catch (error) {
+      setAiInsight("Gagal analisis AI. Cek koneksi.");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const chartData = useMemo(() => {
+    const [y, m] = reportMonth.split("-").map(Number);
+    if (!y || !m) return [];
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const arr = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${y}-${pad(m)}-${pad(d)}`;
+      const daySales = sales.filter(
+        (s) =>
+          getSafeDate(s.tanggal) === dateStr &&
+          (chartCabang === "Semua Cabang" || s.cabang === chartCabang)
+      );
+      arr.push({
+        hari: d,
+        es: +daySales
+          .reduce((a, s) => a + parseFloat(s.jumlah || 0), 0)
+          .toFixed(2),
+        customer: new Set(daySales.map((s) => s.customer)).size,
+      });
+    }
+    return arr;
+  }, [sales, reportMonth, chartCabang]);
+
+  const exportCSV = (month) => {
+    const monthSales = sales.filter((s) =>
+      getSafeDate(s.tanggal).startsWith(month)
+    );
+    const monthExpenses = expenses.filter((e) =>
+      getSafeDate(e.tanggal).startsWith(month)
+    );
+    if (monthSales.length === 0 && monthExpenses.length === 0)
+      return showAlert("Tidak ada data.", "Kosong", true);
+
+    let csv = `LAPORAN BULANAN ES KRISTAL GARUDA\nBulan:,${month}\n\nRINGKASAN PER CABANG\nCabang,Jumlah Es Terjual,Jumlah Customer,Total Pendapatan (Rp),Total Pengeluaran (Rp),Laba Bersih (Rp)\n`;
+    const cabangsInMonth = [
+      ...new Set([
+        ...monthSales.map((s) => s.cabang),
+        ...monthExpenses.map((e) => e.cabang),
+      ]),
+    ];
+    let tEs = 0,
+      tCust = 0,
+      tPend = 0,
+      tPeng = 0,
+      tLaba = 0;
+
+    cabangsInMonth.forEach((cabang) => {
+      const cSales = monthSales.filter((s) => s.cabang === cabang);
+      const cExp = monthExpenses.filter((e) => e.cabang === cabang);
+      const es = cSales.reduce((a, s) => a + parseFloat(s.jumlah || 0), 0);
+      const cust = new Set(cSales.map((s) => s.customer)).size;
+      const pend = cSales.reduce((a, s) => a + s.total, 0);
+      const peng = cExp.reduce((a, e) => a + parseFloat(e.jumlah || 0), 0);
+      const laba = pend - peng;
+      csv += `"${cabang}",${es},${cust},${pend},${peng},${laba}\n`;
+      tEs += es;
+      tCust += cust;
+      tPend += pend;
+      tPeng += peng;
+      tLaba += laba;
+    });
+    csv += `"TOTAL",${tEs},${tCust},${tPend},${tPeng},${tLaba}\n\nDETAIL PENJUALAN\nTanggal,Cabang,Customer,Jumlah Es,Harga Es (Rp),Ongkir (Rp),Total Harga (Rp)\n`;
+    monthSales
+      .sort((a, b) =>
+        getSafeDate(a.tanggal).localeCompare(getSafeDate(b.tanggal))
+      )
+      .forEach(
+        (s) =>
+          (csv += `"${formatTanggal(s.tanggal)}","${s.cabang}","${
+            s.customer
+          }",${s.jumlah},${s.hargaEs},${s.ongkir},${s.total}\n`)
+      );
+    if (monthExpenses.length > 0) {
+      csv +=
+        "\nDETAIL PENGELUARAN\nTanggal,Cabang,Kategori,Keterangan,Jumlah (Rp)\n";
+      monthExpenses
+        .sort((a, b) =>
+          getSafeDate(a.tanggal).localeCompare(getSafeDate(b.tanggal))
+        )
+        .forEach(
+          (e) =>
+            (csv += `"${formatTanggal(e.tanggal)}","${e.cabang}","${
+              e.kategori
+            }","${e.keterangan}",${e.jumlah}\n`)
+        );
+    }
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Laporan_Es_Garuda_${month}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  if (!currentUser)
+    return (
+      <LoginPage
+        onLogin={setCurrentUser}
+        installPrompt={deferredPrompt ? installPWA : null}
+        isOnline={isOnline}
+        showToast={showToast}
+      />
+    );
+
+  const navItems = isAdmin
+    ? [
+        ["kasir", "Kasir"],
+        ["stok", "Stok"],
+        ["laporan", "Laporan"],
+        ["users", "Pengguna"],
+      ]
+    : [
+        ["kasir", "Kasir"],
+        ["stok", "Stok"],
+      ];
+  const tabBtnClass = (active) =>
+    `flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition ${
+      active
+        ? "border-sky-500 text-sky-600 bg-sky-50"
+        : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+    }`;
+  const inputClass =
+    "w-full border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 transition-all bg-white";
+  const labelClass =
+    "block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide";
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-sky-200 pb-20">
+      <CustomDialog dialog={dialog} closeDialog={closeDialog} />
+      {toast.show && (
+        <div
+          className={`fixed top-20 right-6 z-[90] px-5 py-3 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 animate-in slide-in-from-right-8 duration-300 ${
+            toast.type === "error"
+              ? "bg-red-600 text-white"
+              : "bg-slate-800 text-white"
+          }`}
+        >
+          {toast.type === "error" ? (
+            <AlertTriangle className="w-4 h-4" />
+          ) : (
+            <Info className="w-4 h-4" />
+          )}{" "}
+          {toast.msg}
+        </div>
+      )}
+
+      {/* HEADER */}
+      <header className="bg-gradient-to-r from-sky-700 to-blue-800 text-white px-4 sm:px-6 py-3 flex items-center justify-between flex-wrap gap-4 shadow-md sticky top-0 z-40 print:hidden">
+        <div className="flex items-center gap-3 font-bold text-lg tracking-wide">
+          <div className="bg-white/10 p-1.5 rounded-lg">
+            <IceLogo className="w-8 h-8 text-sky-200" />
+          </div>{" "}
+          Es Garuda
+        </div>
+        <nav className="flex gap-1.5 bg-white/10 rounded-xl p-1.5 flex-wrap overflow-x-auto">
+          {navItems.map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${
+                tab === key
+                  ? "bg-white text-sky-700 shadow-sm"
+                  : "text-sky-100 hover:bg-white/20"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {appLoading && (
+            <RefreshCw className="w-4 h-4 text-sky-200 animate-spin" />
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setShowSettings(true)}
+              className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg text-sm font-bold"
+            >
+              <Settings className="w-4 h-4" />
+              <span className="hidden sm:inline">Seting</span>
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg text-sm font-bold"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">CSV</span>
+            </button>
+          )}
+          <div className="flex items-center gap-2 bg-slate-900/40 rounded-lg px-3 py-2 text-sm">
+            <span className="font-bold">{currentUser.nama}</span>
+            <span className="text-[10px] bg-sky-400 text-sky-950 font-bold px-2 py-0.5 rounded-md">
+              {myCabang}
+            </span>
+          </div>
+          <button
+            onClick={() =>
+              setDialog({
+                show: true,
+                type: "confirm",
+                msg: "Keluar aplikasi?",
+                onConfirm: () => {
+                  setCurrentUser(null);
+                  closeDialog();
+                },
+              })
+            }
+            className="bg-red-500 hover:bg-red-600 p-2 rounded-lg"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
+        </div>
+      </header>
+
+      {/* MAIN CONTENT */}
+      <main className="max-w-7xl mx-auto p-4 sm:p-6">
+        {/* TAB KASIR */}
+        {tab === "kasir" && (
+          <div className="animate-in fade-in duration-500">
+            {/* Header Filter */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5 items-end">
+              <div>
+                <label className={labelClass}>Tanggal</label>
+                <input
+                  type="date"
+                  value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Cabang</label>
+                {isAdmin ? (
+                  <select
+                    value={filterCabang}
+                    onChange={(e) => setFilterCabang(e.target.value)}
+                    className={`${inputClass} min-w-[150px]`}
+                  >
+                    <option>Semua Cabang</option>
+                    {cabangList.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className={`${inputClass} bg-slate-100 text-slate-500`}>
+                    {myCabang}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => loadData()}
+                className="ml-auto bg-sky-100 text-sky-700 hover:bg-sky-200 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 text-sm"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${appLoading ? "animate-spin" : ""}`}
+                />{" "}
+                Refresh Data
+              </button>
+            </div>
+
+            {/* Rekap Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm relative overflow-hidden">
+                <div className="absolute -right-4 -top-4 opacity-5">
+                  <Snowflake className="w-24 h-24" />
+                </div>
+                <div className="text-sky-600 text-sm font-bold uppercase mb-3 flex gap-2">
+                  <Snowflake className="w-5 h-5" /> Es Terjual
+                </div>
+                <p className="text-4xl font-black text-slate-800">
+                  {totalEsTerjual}{" "}
+                  <span className="text-lg text-slate-400">Bks</span>
+                </p>
+              </div>
+              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <div className="text-emerald-600 text-sm font-bold uppercase mb-3 flex gap-2">
+                  <ArrowDownCircle className="w-5 h-5" /> Pemasukan
+                </div>
+                <p className="text-3xl font-black text-slate-800">
+                  {formatRupiah(totalPemasukan)}
+                </p>
+              </div>
+              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <div className="text-red-500 text-sm font-bold uppercase mb-3 flex gap-2">
+                  <ArrowUpCircle className="w-5 h-5" /> Pengeluaran
+                </div>
+                <p className="text-3xl font-black text-slate-800">
+                  {formatRupiah(totalPengeluaran)}
+                </p>
+              </div>
+              <div className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700 relative overflow-hidden">
+                <div className="absolute right-0 top-0 w-32 h-32 bg-sky-500/10 rounded-full blur-2xl"></div>
+                <div className="text-sky-400 text-sm font-bold uppercase mb-3 flex gap-2">
+                  <Wallet className="w-5 h-5" /> Laba Bersih
+                </div>
+                <p className="text-3xl font-black text-white">
+                  {formatRupiah(labaBersih)}
+                </p>
+              </div>
+            </div>
+
+            {/* Input & Table */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Form Input */}
+              <div className="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="flex border-b border-slate-200 bg-slate-50">
+                  <button
+                    onClick={() => setFormTab("penjualan")}
+                    className={`flex-1 ${tabBtnClass(formTab === "penjualan")}`}
+                  >
+                    <PlusCircle className="w-4 h-4" /> Jual Es
+                  </button>
+                  <button
+                    onClick={() => setFormTab("pengeluaran")}
+                    className={`flex-1 ${tabBtnClass(
+                      formTab === "pengeluaran"
+                    )}`}
+                  >
+                    <MinusCircle className="w-4 h-4" /> Pengeluaran
+                  </button>
+                </div>
+                <div className="p-6">
+                  {formTab === "penjualan" ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className={labelClass}>Tanggal</label>
+                          <input
+                            type="date"
+                            value={saleForm.tanggal}
+                            onChange={(e) =>
+                              setSaleForm({
+                                ...saleForm,
+                                tanggal: e.target.value,
+                              })
+                            }
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Cabang</label>
+                          {isAdmin ? (
+                            <select
+                              value={saleForm.cabang}
+                              onChange={(e) =>
+                                handleCabangSelect(
+                                  e.target.value,
+                                  saleForm,
+                                  setSaleForm
+                                )
+                              }
+                              className={inputClass}
+                            >
+                              <option value="">Pilih...</option>
+                              {cabangList.map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
+                              <option value="__new__">+ Cabang Baru</option>
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={myCabang}
+                              disabled
+                              className={`${inputClass} bg-slate-100 text-slate-400`}
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Customer</label>
+                        <input
+                          type="text"
+                          placeholder="Mis: Warung Bu Ani"
+                          value={saleForm.customer}
+                          onChange={(e) =>
+                            setSaleForm({
+                              ...saleForm,
+                              customer: e.target.value,
+                            })
+                          }
+                          className={inputClass}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className={labelClass}>Qty (Bks)</label>
+                          <input
+                            type="number"
+                            step="0.05"
+                            value={saleForm.jumlah}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setSaleForm({
+                                ...saleForm,
+                                jumlah: v,
+                                hargaEs: v ? hitungHargaEs(v) : "",
+                              });
+                            }}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Harga (Rp)</label>
+                          <input
+                            type="number"
+                            value={saleForm.hargaEs}
+                            onChange={(e) =>
+                              setSaleForm({
+                                ...saleForm,
+                                hargaEs: e.target.value,
+                              })
+                            }
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Ongkir (Rp)</label>
+                        <input
+                          type="number"
+                          value={saleForm.ongkir}
+                          onChange={(e) =>
+                            setSaleForm({ ...saleForm, ongkir: e.target.value })
+                          }
+                          className={inputClass}
+                        />
+                      </div>
+                      <div className="bg-sky-50 border-2 border-sky-100 rounded-xl p-4 flex justify-between items-center mt-2">
+                        <span className="text-xs font-black text-sky-600 uppercase">
+                          Total Bayar
+                        </span>
+                        <span className="text-2xl font-black text-slate-800">
+                          {formatRupiah(
+                            (parseFloat(saleForm.hargaEs) || 0) +
+                              (parseFloat(saleForm.ongkir) || 0)
+                          )}
+                        </span>
+                      </div>
+                      <button
+                        onClick={addSale}
+                        className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-sky-500/30"
+                      >
+                        Simpan Penjualan
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className={labelClass}>Tanggal</label>
+                          <input
+                            type="date"
+                            value={expenseForm.tanggal}
+                            onChange={(e) =>
+                              setExpenseForm({
+                                ...expenseForm,
+                                tanggal: e.target.value,
+                              })
+                            }
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Cabang</label>
+                          {isAdmin ? (
+                            <select
+                              value={expenseForm.cabang}
+                              onChange={(e) =>
+                                handleCabangSelect(
+                                  e.target.value,
+                                  expenseForm,
+                                  setExpenseForm
+                                )
+                              }
+                              className={inputClass}
+                            >
+                              <option value="">Pilih...</option>
+                              {cabangList.map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
+                              <option value="__new__">+ Cabang Baru</option>
+                            </select>
+                          ) : (
+                            <input
+                              value={myCabang}
+                              disabled
+                              className={`${inputClass} bg-slate-100`}
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Kategori</label>
+                        <select
+                          value={expenseForm.kategori}
+                          onChange={(e) =>
+                            handleKategoriSelect(
+                              e.target.value,
+                              expenseForm,
+                              setExpenseForm
+                            )
+                          }
+                          className={inputClass}
+                        >
+                          <option value="">Pilih...</option>
+                          {kategoriList.map((k) => (
+                            <option key={k} value={k}>
+                              {k}
+                            </option>
+                          ))}
+                          <option value="__new__">+ Kategori Baru</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Nominal (Rp)</label>
+                        <input
+                          type="number"
+                          value={expenseForm.jumlah}
+                          onChange={(e) =>
+                            setExpenseForm({
+                              ...expenseForm,
+                              jumlah: e.target.value,
+                            })
+                          }
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Keterangan</label>
+                        <input
+                          type="text"
+                          value={expenseForm.keterangan}
+                          onChange={(e) =>
+                            setExpenseForm({
+                              ...expenseForm,
+                              keterangan: e.target.value,
+                            })
+                          }
+                          className={inputClass}
+                        />
+                      </div>
+                      <button
+                        onClick={addExpense}
+                        className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg mt-2"
+                      >
+                        Simpan Pengeluaran
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Table History */}
+              <div className="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="flex border-b border-slate-200 bg-slate-50">
+                  <button
+                    onClick={() => setHistTab("pemasukan")}
+                    className={`flex-1 ${tabBtnClass(histTab === "pemasukan")}`}
+                  >
+                    Riwayat Masuk
+                  </button>
+                  <button
+                    onClick={() => setHistTab("pengeluaran")}
+                    className={`flex-1 ${tabBtnClass(
+                      histTab === "pengeluaran"
+                    )}`}
+                  >
+                    Riwayat Keluar
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr className="text-[11px] uppercase tracking-wider text-slate-500">
+                        <th className="px-5 py-3 font-bold">Cabang</th>
+                        <th className="px-5 py-3 font-bold">
+                          {histTab === "pemasukan" ? "Customer" : "Kategori"}
+                        </th>
+                        <th className="px-5 py-3 font-bold">
+                          {histTab === "pemasukan" ? "Qty" : "Keterangan"}
+                        </th>
+                        <th className="px-5 py-3 font-bold">Nominal</th>
+                        <th className="px-5 py-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(histTab === "pemasukan"
+                        ? filteredSales
+                        : filteredExpenses
+                      ).length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="text-center text-slate-400 py-12"
+                          >
+                            Belum ada transaksi hari ini.
+                          </td>
+                        </tr>
+                      )}
+                      {(histTab === "pemasukan"
+                        ? filteredSales
+                        : filteredExpenses
+                      ).map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50">
+                          <td className="px-5 py-4 font-bold text-sky-600">
+                            {item.cabang}
+                          </td>
+                          <td className="px-5 py-4 font-medium">
+                            {histTab === "pemasukan"
+                              ? item.customer
+                              : item.kategori}
+                          </td>
+                          <td className="px-5 py-4 text-slate-600">
+                            {histTab === "pemasukan" ? (
+                              <span className="bg-slate-100 px-2 py-1 rounded">
+                                {item.jumlah}
+                              </span>
+                            ) : (
+                              item.keterangan
+                            )}
+                          </td>
+                          <td
+                            className={`px-5 py-4 font-black ${
+                              histTab === "pemasukan"
+                                ? "text-emerald-600"
+                                : "text-red-500"
+                            }`}
+                          >
+                            {formatRupiah(
+                              histTab === "pemasukan" ? item.total : item.jumlah
+                            )}
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            {isAdmin && (
+                              <button
+                                onClick={() =>
+                                  confirmDeleteData(
+                                    histTab === "pemasukan"
+                                      ? "Sales"
+                                      : "Expenses",
+                                    item.id
+                                  )
+                                }
+                                className="p-1.5 hover:bg-red-50 rounded-lg"
+                              >
+                                <Trash2 className="w-4 h-4 text-slate-300 hover:text-red-500" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB STOK */}
+        {tab === "stok" && (
+          <div className="animate-in fade-in duration-500">
+            {/* ... Sama dengan sebelumnya, hanya dipersingkat agar muat ... */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5 print:hidden">
+              <div>
+                <label className={labelClass}>Tanggal Data</label>
+                <input
+                  type="date"
+                  value={stockFilterDate}
+                  onChange={(e) => setStockFilterDate(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Cabang Aktif</label>
+                {isAdmin ? (
+                  <select
+                    value={stockFilterCabang}
+                    onChange={(e) => setStockFilterCabang(e.target.value)}
+                    className={`${inputClass} min-w-[200px]`}
+                  >
+                    <option>Semua Cabang</option>
+                    {cabangList.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="border-2 border-slate-200 bg-slate-100 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-500">
+                    {myCabang}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => window.print()}
+                className="ml-auto bg-slate-800 text-white px-5 rounded-xl text-sm font-bold flex items-center gap-2"
+              >
+                <Printer className="w-4 h-4" /> Cetak
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-sky-500"></div>
+              <div className="flex items-center gap-2 font-black text-slate-800 text-lg mb-5">
+                <PackageSearch className="w-6 h-6 text-sky-500" /> Input Opname
+                Stok
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-end">
+                <div>
+                  <label className={labelClass}>Tanggal</label>
+                  <input
+                    type="date"
+                    value={stockForm.tanggal}
+                    onChange={(e) =>
+                      setStockForm({ ...stockForm, tanggal: e.target.value })
+                    }
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Cabang</label>
+                  {isAdmin ? (
+                    <select
+                      value={stockForm.cabang}
+                      onChange={(e) =>
+                        handleCabangSelect(
+                          e.target.value,
+                          stockForm,
+                          setStockForm
+                        )
+                      }
+                      className={inputClass}
+                    >
+                      <option value="">Pilih...</option>
+                      {cabangList.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                      <option value="__new__">+ Baru</option>
+                    </select>
+                  ) : (
+                    <input
+                      value={myCabang}
+                      disabled
+                      className={`${inputClass} bg-slate-100`}
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className={labelClass}>Es Masuk (Hari Ini)</label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    value={stockForm.esMasukHariIni}
+                    onChange={(e) =>
+                      setStockForm({
+                        ...stockForm,
+                        esMasukHariIni: e.target.value,
+                      })
+                    }
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Sisa Aktual (Fisik)</label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    value={stockForm.sisaEsActual}
+                    onChange={(e) =>
+                      setStockForm({
+                        ...stockForm,
+                        sisaEsActual: e.target.value,
+                      })
+                    }
+                    className={inputClass}
+                  />
+                </div>
+                <button
+                  onClick={addStock}
+                  className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 rounded-xl"
+                >
+                  Simpan Stok
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-5 border-b border-slate-200 bg-slate-50">
+                <h3 className="font-black text-lg">
+                  Rekonsiliasi Stok & Susut
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-100 border-b border-slate-200">
+                    <tr className="text-[11px] uppercase tracking-wider text-slate-600">
+                      <th className="px-4 py-3">Tanggal</th>
+                      <th className="px-4 py-3">Cabang</th>
+                      <th className="px-4 py-3">Sisa Kemarin</th>
+                      <th className="px-4 py-3 text-sky-700">Masuk Hr Ini</th>
+                      <th className="px-4 py-3">Jmlh Masuk</th>
+                      <th className="px-4 py-3">Terjual</th>
+                      <th className="px-4 py-3 bg-slate-200/50">Sisa Sistem</th>
+                      <th className="px-4 py-3 text-sky-700">Sisa Aktual</th>
+                      <th className="px-4 py-3">Susut</th>
+                      <th className="px-4 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredStock.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 text-slate-600">
+                          {formatTanggal(r.tanggal)}
+                        </td>
+                        <td className="px-4 py-3 font-bold text-sky-600">
+                          {r.cabang}
+                        </td>
+                        <td className="px-4 py-3">{r.sisaKemarin}</td>
+                        <td className="px-4 py-3 font-bold text-sky-600 bg-sky-50/30">
+                          {r.esMasukHariIni}
+                        </td>
+                        <td className="px-4 py-3">{r.jumlahEsMasuk}</td>
+                        <td className="px-4 py-3">{r.terjual}</td>
+                        <td className="px-4 py-3 font-black bg-slate-50">
+                          {r.sisaEsSistem}
+                        </td>
+                        <td className="px-4 py-3 font-black text-sky-600">
+                          {r.sisaEsActual}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-bold ${
+                              r.susut > 0
+                                ? "bg-red-100 text-red-700"
+                                : r.susut < 0
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-100"
+                            }`}
+                          >
+                            {r.susut > 0 ? "+" : ""}
+                            {r.susut}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {isAdmin && (
+                            <button
+                              onClick={() => confirmDeleteData("Stocks", r.id)}
+                              className="p-1 hover:bg-red-50 rounded text-slate-300 hover:text-red-500"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB LAPORAN & PENGGUNA - HANYA ADMIN */}
+        {tab === "laporan" && isAdmin && (
+          <div className="animate-in fade-in duration-500">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5">
+              <div>
+                <label className={labelClass}>Bulan</label>
+                <input
+                  type="month"
+                  value={reportMonth}
+                  onChange={(e) => setReportMonth(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <button
+                onClick={() => window.print()}
+                className="ml-auto mt-auto bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex gap-2"
+              >
+                <Printer className="w-4 h-4" /> Cetak PDF
+              </button>
+            </div>
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+              <div className="p-5 border-b border-slate-200 bg-slate-50">
+                <h3 className="font-black text-lg">
+                  Ringkasan Omset - {reportMonth}
+                </h3>
+              </div>
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-100 border-b border-slate-200">
+                  <tr className="text-[11px] uppercase text-slate-500">
+                    <th className="px-5 py-3">Cabang</th>
+                    <th className="px-5 py-3">Es Terjual</th>
+                    <th className="px-5 py-3">Customer</th>
+                    <th className="px-5 py-3">Pendapatan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {monthlySummary.map((r) => (
+                    <tr key={r.cabang}>
+                      <td className="px-5 py-3 font-bold text-sky-600">
+                        {r.cabang}
+                      </td>
+                      <td className="px-5 py-3">{r.esTerjual}</td>
+                      <td className="px-5 py-3">{r.customer}</td>
+                      <td className="px-5 py-3 font-black text-emerald-600">
+                        {formatRupiah(r.pendapatan)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-slate-800 text-white font-black">
+                    <td className="px-5 py-3">TOTAL</td>
+                    <td className="px-5 py-3">{totalRingkasan.esTerjual}</td>
+                    <td className="px-5 py-3">{totalRingkasan.customer}</td>
+                    <td className="px-5 py-3 text-emerald-400">
+                      {formatRupiah(totalRingkasan.pendapatan)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === "users" && isAdmin && (
+          <div className="animate-in fade-in duration-500">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-black text-slate-800">
+                Manajemen Pengguna
+              </h2>
+              <button
+                onClick={() => {
+                  setEditingUser(null);
+                  setShowUserModal(true);
+                }}
+                className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold"
+              >
+                <PlusCircle className="w-4 h-4" /> Tambah Akun
+              </button>
+            </div>
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr className="text-[11px] uppercase text-slate-500">
+                    <th className="px-5 py-3">Nama</th>
+                    <th className="px-5 py-3">Username</th>
+                    <th className="px-5 py-3">Role</th>
+                    <th className="px-5 py-3">Cabang</th>
+                    <th className="px-5 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {users.map((u) => (
+                    <tr key={u.id}>
+                      <td className="px-5 py-4 font-bold">{u.nama}</td>
+                      <td className="px-5 py-4 text-slate-500">
+                        @{u.username}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
+                            u.role === "admin"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-sky-100 text-sky-700"
+                          }`}
+                        >
+                          {u.role}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        {u.role === "admin" ? "-" : u.cabang}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <button
+                          onClick={() => {
+                            setEditingUser(u);
+                            setShowUserModal(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-sky-600"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>{" "}
+                        <button
+                          onClick={() => removeUser(u.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* MODALS */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50">
+              <h3 className="font-black text-lg">Pengaturan Data</h3>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="p-1 hover:bg-slate-200 rounded-full"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            <div className="flex border-b border-slate-200">
+              <button
+                onClick={() => setSettingsTab("cabang")}
+                className={`flex-1 py-3 text-sm font-bold border-b-2 ${
+                  settingsTab === "cabang"
+                    ? "border-sky-500 text-sky-600"
+                    : "border-transparent text-slate-500"
+                }`}
+              >
+                Cabang
+              </button>
+              <button
+                onClick={() => setSettingsTab("kategori")}
+                className={`flex-1 py-3 text-sm font-bold border-b-2 ${
+                  settingsTab === "kategori"
+                    ? "border-sky-500 text-sky-600"
+                    : "border-transparent text-slate-500"
+                }`}
+              >
+                Kategori
+              </button>
+            </div>
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {settingsTab === "cabang" ? (
+                <div>
+                  <div className="flex gap-2 mb-5">
+                    <input
+                      value={newCabang}
+                      onChange={(e) => setNewCabang(e.target.value)}
+                      placeholder="Cabang Baru"
+                      className={inputClass}
+                    />
+                    <button
+                      onClick={() => {
+                        if (newCabang.trim()) {
+                          setCabangList((p) => [...p, newCabang.trim()]);
+                          setNewCabang("");
+                        }
+                      }}
+                      className="bg-slate-800 text-white px-5 rounded-xl font-bold"
+                    >
+                      Tambah
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {cabangList.map((c) => (
+                      <div
+                        key={c}
+                        className="flex justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-3"
+                      >
+                        <span className="font-semibold">{c}</span>
+                        <button
+                          onClick={() =>
+                            setCabangList(cabangList.filter((x) => x !== c))
+                          }
+                          className="text-slate-400 hover:text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex gap-2 mb-5">
+                    <input
+                      value={newKategori}
+                      onChange={(e) => setNewKategori(e.target.value)}
+                      placeholder="Kategori Baru"
+                      className={inputClass}
+                    />
+                    <button
+                      onClick={() => {
+                        if (newKategori.trim()) {
+                          setKategoriList((p) => [...p, newKategori.trim()]);
+                          setNewKategori("");
+                        }
+                      }}
+                      className="bg-slate-800 text-white px-5 rounded-xl font-bold"
+                    >
+                      Tambah
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {kategoriList.map((k) => (
+                      <div
+                        key={k}
+                        className="flex justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-3"
+                      >
+                        <span className="font-semibold">{k}</span>
+                        <button
+                          onClick={() =>
+                            setKategoriList(kategoriList.filter((x) => x !== k))
+                          }
+                          className="text-slate-400 hover:text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showExportModal && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="font-black text-lg">Export CSV</h3>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="p-1 hover:bg-slate-200 rounded-full"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            <label className={labelClass}>Pilih Bulan</label>
+            <input
+              type="month"
+              value={exportMonth}
+              onChange={(e) => setExportMonth(e.target.value)}
+              className={`${inputClass} mb-6`}
+            />
+            <button
+              onClick={() => {
+                exportCSV(exportMonth);
+                setShowExportModal(false);
+              }}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2"
+            >
+              <Download className="w-5 h-5" /> Download CSV
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showUserModal && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50">
+              <h3 className="font-black text-lg">
+                {editingUser ? "Edit User" : "User Baru"}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowUserModal(false);
+                  setEditingUser(null);
+                }}
+                className="p-1 hover:bg-slate-200 rounded-full"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            <UserForm
+              data={editingUser}
+              cabangList={cabangList}
+              onSave={saveUser}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Sub-Component User Form
+function UserForm({ data, cabangList, onSave }) {
+  const [form, setForm] = useState({
+    id: data?.id || null,
+    nama: data?.nama || "",
+    username: data?.username || "",
+    password: "",
+    role: data?.role || "pegawai",
+    cabang: data?.cabang || cabangList[0] || "",
+  });
+  const inputClass =
+    "w-full border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 transition-all";
+  const labelClass =
+    "block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide";
+  return (
+    <div className="p-6 space-y-4">
+      <div>
+        <label className={labelClass}>Nama Lengkap</label>
+        <input
+          className={inputClass}
+          value={form.nama}
+          onChange={(e) => setForm({ ...form, nama: e.target.value })}
+        />
+      </div>
+      <div>
+        <label className={labelClass}>Username Login</label>
+        <input
+          className={inputClass}
+          value={form.username}
+          onChange={(e) => setForm({ ...form, username: e.target.value })}
+        />
+      </div>
+      <div>
+        <label className={labelClass}>
+          {data ? "Password (Kosong jika tidak diganti)" : "Password"}
+        </label>
+        <input
+          type="password"
+          placeholder="••••••••"
+          className={inputClass}
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+        />
+      </div>
+      <div>
+        <label className={labelClass}>Level Akses</label>
+        <select
+          className={inputClass}
+          value={form.role}
+          onChange={(e) => setForm({ ...form, role: e.target.value })}
+        >
+          <option value="pegawai">Pegawai Cabang</option>
+          <option value="admin">Super Admin</option>
+        </select>
+      </div>
+      {form.role === "pegawai" && (
+        <div>
+          <label className={labelClass}>Penempatan Cabang</label>
+          <select
+            className={inputClass}
+            value={form.cabang}
+            onChange={(e) => setForm({ ...form, cabang: e.target.value })}
+          >
+            {cabangList.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <button
+        onClick={() => onSave(form)}
+        className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3.5 rounded-xl mt-6"
+      >
+        Simpan Akses
+      </button>
+    </div>
+  );
+}
