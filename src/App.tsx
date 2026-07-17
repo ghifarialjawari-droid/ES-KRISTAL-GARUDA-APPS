@@ -51,7 +51,7 @@ const GAS_URL =
 const apiKey =
   "https://script.google.com/macros/s/AKfycbxhwZL3P4KWLp8r_LoUt6Oipb7TExmRQVM7PEUbgqyGqMp3hT4BnpRGOcGGDM5oxFdW/exec";
 
-async function fetchGeminiAI(prompt) {
+async function fetchGeminiAI(prompt: string) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
   const payload = { contents: [{ parts: [{ text: prompt }] }] };
 
