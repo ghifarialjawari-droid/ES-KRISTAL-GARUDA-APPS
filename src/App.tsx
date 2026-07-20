@@ -286,6 +286,22 @@ export default function App() {
   const emptyOwnerForm = { id: null, tanggal: todayStr(), cabang: "Semua Cabang", keterangan: "", jumlah: "", jenis: "keluar" };
   const [ownerForm, setOwnerForm] = useState(emptyOwnerForm);
 
+  const [ownerFilterDate, setOwnerFilterDate] = useState("");
+  const [ownerFilterCabang, setOwnerFilterCabang] = useState("Semua Cabang");
+  const [ownerFilterJenis, setOwnerFilterJenis] = useState("semua");
+
+  const filteredOwnerNotes = useMemo(() => {
+    return ownerNotes.filter((n) => {
+      const matchDate = !ownerFilterDate || getSafeDate(n.tanggal) === ownerFilterDate;
+      const matchCabang = ownerFilterCabang === "Semua Cabang" || n.cabang === ownerFilterCabang;
+      const matchJenis = ownerFilterJenis === "semua" || n.jenis === ownerFilterJenis;
+      return matchDate && matchCabang && matchJenis;
+    });
+  }, [ownerNotes, ownerFilterDate, ownerFilterCabang, ownerFilterJenis]);
+
+  const filteredOwnerMasuk = filteredOwnerNotes.filter(n => n.jenis === "masuk").reduce((a,n)=>a+parseFloat(n.jumlah||0),0);
+  const filteredOwnerKeluar = filteredOwnerNotes.filter(n => n.jenis === "keluar").reduce((a,n)=>a+parseFloat(n.jumlah||0),0);
+
   const addOwnerNote = () => {
     if (!ownerForm.keterangan.trim() || !ownerForm.jumlah || parseFloat(ownerForm.jumlah) <= 0) {
       return showAlert("Harap lengkapi Keterangan dan Jumlah.", "Data Belum Lengkap", true);
@@ -306,7 +322,15 @@ export default function App() {
     setDialog({ show: true, type: "confirm", isDestructive: true, title: "Hapus Catatan", msg: "Yakin hapus catatan ini?", onConfirm: () => { dbDelete("OwnerNotes", id); closeDialog(); } });
   };
 
-  const saveBankBalance = () => {
+ const adjustBankBalance = (type) => {
+    if (bankInput === "" || isNaN(parseFloat(bankInput)) || parseFloat(bankInput) <= 0) return showAlert("Masukkan angka yang valid.", "Peringatan", true);
+    const amount = parseFloat(bankInput);
+    const newBalance = type === "tambah" ? bankBalance + amount : bankBalance - amount;
+    dbSave("BankBalance", { id: "current", saldo: newBalance, updatedAt: new Date().toISOString() });
+    setBankInput("");
+  };
+
+  const setBankBalanceManual = () => {
     if (bankInput === "" || isNaN(parseFloat(bankInput))) return showAlert("Masukkan angka saldo yang valid.", "Peringatan", true);
     dbSave("BankBalance", { id: "current", saldo: parseFloat(bankInput), updatedAt: new Date().toISOString() });
     setBankInput("");
@@ -1083,9 +1107,11 @@ export default function App() {
               <div className="absolute right-0 top-0 w-40 h-40 bg-sky-500/10 rounded-full blur-2xl"></div>
               <div className="text-sky-400 text-sm font-bold uppercase mb-2 flex items-center gap-2"><Wallet className="w-5 h-5" /> Saldo Rekening Bank Saat Ini</div>
               <p className="text-4xl font-black text-white mb-4">{formatRupiah(bankBalance)}</p>
-              <div className="flex gap-2">
-                <input type="number" placeholder="Masukkan saldo terbaru" value={bankInput} onChange={(e) => setBankInput(e.target.value)} className="flex-1 border-2 border-slate-600 bg-slate-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500" />
-                <button onClick={saveBankBalance} className="bg-sky-500 hover:bg-sky-600 text-white font-bold px-5 rounded-xl text-sm">Update Saldo</button>
+             <div className="flex gap-2 flex-wrap">
+                <input type="number" placeholder="Masukkan jumlah" value={bankInput} onChange={(e) => setBankInput(e.target.value)} className="flex-1 min-w-[150px] border-2 border-slate-600 bg-slate-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500" />
+                <button onClick={() => adjustBankBalance("tambah")} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 rounded-xl text-sm">+ Tambah</button>
+                <button onClick={() => adjustBankBalance("kurangi")} className="bg-red-500 hover:bg-red-600 text-white font-bold px-5 rounded-xl text-sm">- Kurangi</button>
+                <button onClick={setBankBalanceManual} className="bg-slate-600 hover:bg-slate-500 text-white font-bold px-5 rounded-xl text-sm">Set Langsung</button>
               </div>
             </div>
 
@@ -1172,8 +1198,37 @@ export default function App() {
               <div className="mt-4"><label className={labelClass}>Keterangan</label><input type="text" placeholder="Mis: Gaji Karyawan Depot Limbangan Bulan Juli" value={ownerForm.keterangan} onChange={(e) => setOwnerForm({ ...ownerForm, keterangan: e.target.value })} className={inputClass} /></div>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
+              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <div className="text-emerald-600 text-sm font-bold uppercase mb-3">Total Pemasukan (Sesuai Filter)</div>
+                <p className="text-3xl font-black text-slate-800">{formatRupiah(filteredOwnerMasuk)}</p>
+              </div>
+              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <div className="text-red-500 text-sm font-bold uppercase mb-3">Total Pengeluaran (Sesuai Filter)</div>
+                <p className="text-3xl font-black text-slate-800">{formatRupiah(filteredOwnerKeluar)}</p>
+              </div>
+            </div>
+
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="p-5 border-b border-slate-200 bg-slate-50"><h3 className="font-black text-lg">Riwayat Catatan Rahasia</h3></div>
+              <div className="p-5 border-b border-slate-200 bg-slate-50 flex flex-wrap gap-4 items-end justify-between">
+                <h3 className="font-black text-lg">Riwayat Catatan Rahasia</h3>
+                <div className="flex flex-wrap gap-3">
+                  <div><label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Tanggal</label><input type="date" value={ownerFilterDate} onChange={(e) => setOwnerFilterDate(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium" /></div>
+                  <div><label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Depot</label>
+                    <select value={ownerFilterCabang} onChange={(e) => setOwnerFilterCabang(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium">
+                      <option>Semua Cabang</option>{cabangList.map((c) => (<option key={c}>{c}</option>))}
+                    </select>
+                  </div>
+                  <div><label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Jenis</label>
+                    <select value={ownerFilterJenis} onChange={(e) => setOwnerFilterJenis(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium">
+                      <option value="semua">Semua</option><option value="masuk">Masuk</option><option value="keluar">Keluar</option>
+                    </select>
+                  </div>
+                  {(ownerFilterDate || ownerFilterCabang !== "Semua Cabang" || ownerFilterJenis !== "semua") && (
+                    <button onClick={() => { setOwnerFilterDate(""); setOwnerFilterCabang("Semua Cabang"); setOwnerFilterJenis("semua"); }} className="self-end text-xs font-bold text-slate-400 hover:text-red-500 px-2 py-1.5">Reset</button>
+                  )}
+                </div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
@@ -1187,10 +1242,10 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {ownerNotes.length === 0 && (
-                      <tr><td colSpan={6} className="text-center text-slate-400 py-12">Belum ada catatan.</td></tr>
+                    {filteredOwnerNotes.length === 0 && (
+                      <tr><td colSpan={6} className="text-center text-slate-400 py-12">Tidak ada catatan sesuai filter.</td></tr>
                     )}
-                    {ownerNotes.slice().sort((a,b)=>getSafeDate(b.tanggal).localeCompare(getSafeDate(a.tanggal))).map((n) => (
+                    {filteredOwnerNotes.slice().sort((a,b)=>getSafeDate(b.tanggal).localeCompare(getSafeDate(a.tanggal))).map((n) => (
                       <tr key={n.id} className="hover:bg-slate-50">
                         <td className="px-5 py-4 text-slate-600">{formatTanggal(n.tanggal)}</td>
                         <td className="px-5 py-4 font-bold text-sky-600">{n.cabang || "Semua Cabang"}</td>
