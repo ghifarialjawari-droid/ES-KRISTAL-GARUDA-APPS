@@ -183,7 +183,7 @@ function LoginPage({ onLogin, installPrompt, isOnline, showToast }) {
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-500/20 rounded-full blur-3xl"></div>
       <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-8 flex flex-col items-center">
-          <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-md mb-4 shadow-xl border border-white/20"><IceLogo className="w-16 h-16 text-sky-300 drop-shadow-lg" /></div>
+         <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-md mb-4 shadow-xl border border-white/20"><img src="/logo192.png" alt="Es Kristal Garuda" className="w-16 h-16 object-contain" /></div>
           <h1 className="text-2xl font-bold text-white tracking-wide">Es Kristal Garuda</h1>
           <div className="flex items-center justify-center gap-2 mt-2">
             {isOnline ? (<span className="flex items-center gap-1.5 text-xs font-medium bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full border border-emerald-500/30"><Database className="w-3.5 h-3.5" /> Tersambung Cloud</span>) : (<span className="flex items-center gap-1.5 text-xs font-medium bg-amber-500/20 text-amber-300 px-3 py-1 rounded-full border border-amber-500/30"><WifiOff className="w-3.5 h-3.5" /> Mode Lokal Offline</span>)}
@@ -668,7 +668,7 @@ export default function App() {
 
       {/* HEADER */}
       <header className="bg-gradient-to-r from-sky-700 to-blue-800 text-white px-4 sm:px-6 py-3 flex items-center justify-between flex-wrap gap-4 shadow-md sticky top-0 z-40 print:hidden">
-        <div className="flex items-center gap-3 font-bold text-lg tracking-wide"><div className="bg-white/10 p-1.5 rounded-lg"><IceLogo className="w-8 h-8 text-sky-200" /></div> Es Garuda</div>
+     <div className="flex items-center gap-3 font-bold text-lg tracking-wide"><div className="bg-white/10 p-1.5 rounded-lg"><img src="/logo192.png" alt="Es Kristal Garuda" className="w-8 h-8 object-contain" /></div> Es Kristal Garuda</div>
         <nav className="flex gap-1.5 bg-white/10 rounded-xl p-1.5 flex-wrap overflow-x-auto">
           {navItems.map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} className={`px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${tab === key ? "bg-white text-sky-700 shadow-sm" : "text-sky-100 hover:bg-white/20"}`}>{label}</button>
