@@ -1071,12 +1071,7 @@ export default function App() {
             </div>
           </div>
         )}
-        </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
+  
         {tab === "owner" && isAdmin && (
           <div className="animate-in fade-in duration-500">
             <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 mb-6 flex items-center gap-3">
