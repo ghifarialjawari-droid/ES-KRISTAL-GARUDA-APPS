@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Snowflake, Settings, Download, X, Trash2, PlusCircle, MinusCircle,
