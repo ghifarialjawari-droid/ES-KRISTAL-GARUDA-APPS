@@ -1076,7 +1076,7 @@ export default function App() {
           <div className="animate-in fade-in duration-500">
             <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 mb-6 flex items-center gap-3">
               <ShieldCheck className="w-6 h-6 text-amber-600 flex-shrink-0" />
-              <p className="text-sm text-amber-800 font-semibold">Halaman ini rahasia â€” hanya Super Admin yang bisa melihat. Data tidak pernah dikirim ke akun Pegawai.</p>
+              <p className="text-sm text-amber-800 font-semibold">Halaman ini rahasia - hanya Super Admin yang bisa melihat.. Data tidak pernah dikirim ke akun Pegawai.</p>
             </div>
 
             <div className="bg-slate-800 rounded-2xl p-6 shadow-lg mb-6 relative overflow-hidden">
@@ -1105,7 +1105,7 @@ export default function App() {
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-              <div className="p-5 border-b border-slate-200 bg-slate-50"><h3 className="font-black text-lg">Laba Bersih Riil per Depot â€” {ownerReportMonth}</h3></div>
+              <div className="p-5 border-b border-slate-200 bg-slate-50"><h3 className="font-black text-lg">Laba Bersih Riil per Depot” {ownerReportMonth}</h3></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-slate-100 border-b border-slate-200">
