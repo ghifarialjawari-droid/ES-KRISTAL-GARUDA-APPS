@@ -937,7 +937,7 @@ export default function App() {
                                     <Printer className="w-4 h-4" />
                                   </button>
                                 )}
-                                <button onClick={() => { histTab === "pemasukan" ? editSale(item) : setExpenseForm(item); setFormTab(histTab); }} className="p-1.5 hover:bg-sky-50 rounded-lg text-slate-400 hover:text-sky-600">
+                              <button onClick={() => { if (histTab === "pemasukan") { editSale(item); } else { setExpenseForm(item); setFormTab("pengeluaran"); } }} className="p-1.5 hover:bg-sky-50 rounded-lg text-slate-400 hover:text-sky-600">
                                   <Pencil className="w-4 h-4" />
                                 </button>
                                 <button onClick={() => confirmDeleteData(histTab === "pemasukan" ? "Sales" : "Expenses", item.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500">
@@ -1111,7 +1111,6 @@ export default function App() {
                 <input type="number" placeholder="Masukkan jumlah" value={bankInput} onChange={(e) => setBankInput(e.target.value)} className="flex-1 min-w-[150px] border-2 border-slate-600 bg-slate-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500" />
                 <button onClick={() => adjustBankBalance("tambah")} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 rounded-xl text-sm">+ Tambah</button>
                 <button onClick={() => adjustBankBalance("kurangi")} className="bg-red-500 hover:bg-red-600 text-white font-bold px-5 rounded-xl text-sm">- Kurangi</button>
-                <button onClick={setBankBalanceManual} className="bg-slate-600 hover:bg-slate-500 text-white font-bold px-5 rounded-xl text-sm">Set Langsung</button>
               </div>
             </div>
 
@@ -1140,8 +1139,8 @@ export default function App() {
                       <th className="px-4 py-3">Pemasukan</th>
                       <th className="px-4 py-3">Peng. Pegawai</th>
                       <th className="px-4 py-3 bg-slate-200/50">Laba Kotor</th>
-                      <th className="px-4 py-3 text-red-600">Rahasia Keluar</th>
-                      <th className="px-4 py-3 text-emerald-600">Rahasia Masuk</th>
+                     <th className="px-4 py-3 text-red-600">Pengeluaran Kas</th>
+                      <th className="px-4 py-3 text-emerald-600">Pemasukan Kas</th>
                       <th className="px-4 py-3 font-black">Laba Riil</th>
                     </tr>
                   </thead>
@@ -1186,10 +1185,10 @@ export default function App() {
                     {cabangList.map((c) => (<option key={c} value={c}>{c}</option>))}
                   </select>
                 </div>
-                <div><label className={labelClass}>Jenis</label>
+               <div><label className={labelClass}>Jenis</label>
                   <select value={ownerForm.jenis} onChange={(e) => setOwnerForm({ ...ownerForm, jenis: e.target.value })} className={inputClass}>
-                    <option value="keluar">Keluar (Gaji/Biaya)</option>
-                    <option value="masuk">Masuk (Modal/Lainnya)</option>
+                    <option value="keluar">- Kurangi (Pengeluaran Kas)</option>
+                    <option value="masuk">+ Tambah (Pemasukan Kas)</option>
                   </select>
                 </div>
                 <div><label className={labelClass}>Jumlah (Rp)</label><input type="number" value={ownerForm.jumlah} onChange={(e) => setOwnerForm({ ...ownerForm, jumlah: e.target.value })} className={inputClass} /></div>
@@ -1221,7 +1220,7 @@ export default function App() {
                   </div>
                   <div><label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Jenis</label>
                     <select value={ownerFilterJenis} onChange={(e) => setOwnerFilterJenis(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium">
-                      <option value="semua">Semua</option><option value="masuk">Masuk</option><option value="keluar">Keluar</option>
+                     <option value="semua">Semua</option><option value="masuk">Pemasukan</option><option value="keluar">Pengeluaran</option>
                     </select>
                   </div>
                   {(ownerFilterDate || ownerFilterCabang !== "Semua Cabang" || ownerFilterJenis !== "semua") && (
