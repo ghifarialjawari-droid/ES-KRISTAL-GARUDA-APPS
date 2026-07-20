@@ -10,7 +10,7 @@ import {
 } from "recharts";
 
 // ==========================================
-// 🔴 PENGATURAN DATABASE GOOGLE APPS SCRIPT
+// ðŸ”´ PENGATURAN DATABASE GOOGLE APPS SCRIPT
 // ==========================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxhwZL3P4KWLp8r_LoUt6Oipb7TExmRQVM7PEUbgqyGqMp3hT4BnpRGOcGGDM5oxFdW/exec"; 
 
@@ -192,9 +192,9 @@ function LoginPage({ onLogin, installPrompt, isOnline, showToast }) {
         <div onKeyDown={(e) => e.key === "Enter" && submit()} className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-7 space-y-5 border border-white/50">
           <div><label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">Username</label><input value={username} onChange={(e) => setUsername(e.target.value)} disabled={isLoading} className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-50 transition-all bg-slate-50" placeholder="Masukkan username" autoComplete="username" /></div>
           <div><label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">Password</label>
-            <div className="relative"><input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-50 transition-all bg-slate-50 pr-12" placeholder="••••••••" autoComplete="current-password" /><button type="button" onClick={() => setShowPw((s) => !s)} disabled={isLoading} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-sky-600 transition-colors">{showPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button></div>
+            <div className="relative"><input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-50 transition-all bg-slate-50 pr-12" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" autoComplete="current-password" /><button type="button" onClick={() => setShowPw((s) => !s)} disabled={isLoading} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-sky-600 transition-colors">{showPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button></div>
           </div>
-          {error && (<p className="text-red-600 text-xs font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 flex items-center gap-2">⚠️ {error}</p>)}
+          {error && (<p className="text-red-600 text-xs font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 flex items-center gap-2">âš ï¸ {error}</p>)}
           <button type="button" onClick={submit} disabled={isLoading} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 shadow-lg shadow-sky-500/30 transition-all text-white text-sm font-bold rounded-xl py-3.5 disabled:opacity-70 disabled:cursor-not-allowed">
             {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}{isLoading ? "Memverifikasi..." : "Masuk ke Sistem"}
           </button>
@@ -1071,12 +1071,12 @@ export default function App() {
             </div>
           </div>
         )}
-  
+
         {tab === "owner" && isAdmin && (
           <div className="animate-in fade-in duration-500">
             <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 mb-6 flex items-center gap-3">
               <ShieldCheck className="w-6 h-6 text-amber-600 flex-shrink-0" />
-              <p className="text-sm text-amber-800 font-semibold">Halaman ini rahasia — hanya Super Admin yang bisa melihat. Data tidak pernah dikirim ke akun Pegawai.</p>
+              <p className="text-sm text-amber-800 font-semibold">Halaman ini rahasia â€” hanya Super Admin yang bisa melihat. Data tidak pernah dikirim ke akun Pegawai.</p>
             </div>
 
             <div className="bg-slate-800 rounded-2xl p-6 shadow-lg mb-6 relative overflow-hidden">
@@ -1105,7 +1105,7 @@ export default function App() {
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-              <div className="p-5 border-b border-slate-200 bg-slate-50"><h3 className="font-black text-lg">Laba Bersih Riil per Depot — {ownerReportMonth}</h3></div>
+              <div className="p-5 border-b border-slate-200 bg-slate-50"><h3 className="font-black text-lg">Laba Bersih Riil per Depot â€” {ownerReportMonth}</h3></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-slate-100 border-b border-slate-200">
@@ -1278,7 +1278,7 @@ function UserForm({ data, cabangList, onSave }) {
     <div className="p-6 space-y-4">
       <div><label className={labelClass}>Nama Lengkap</label><input className={inputClass} value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} /></div>
       <div><label className={labelClass}>Username Login</label><input className={inputClass} value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} /></div>
-      <div><label className={labelClass}>{data ? "Password (Kosong jika tidak diganti)" : "Password"}</label><input type="password" placeholder="••••••••" className={inputClass} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
+      <div><label className={labelClass}>{data ? "Password (Kosong jika tidak diganti)" : "Password"}</label><input type="password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" className={inputClass} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
       <div><label className={labelClass}>Level Akses</label><select className={inputClass} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}><option value="pegawai">Pegawai Cabang</option><option value="admin">Super Admin</option></select></div>
       {form.role === "pegawai" && (<div><label className={labelClass}>Penempatan Cabang</label><select className={inputClass} value={form.cabang} onChange={(e) => setForm({ ...form, cabang: e.target.value })}>{cabangList.map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>)}
       <button onClick={() => onSave(form)} className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3.5 rounded-xl mt-6">Simpan Akses</button>
