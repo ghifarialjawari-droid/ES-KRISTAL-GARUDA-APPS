@@ -3,21 +3,14 @@ import React, { useState, useMemo, useEffect } from "react";
 import {
   Snowflake, Settings, Download, X, Trash2, PlusCircle, MinusCircle,
   ArrowDownCircle, ArrowUpCircle, Wallet, PackageSearch, Printer,
-  LogIn, LogOut, Users, ShieldCheck, Eye, EyeOff, Pencil, Smartphone, Sparkles, Database, WifiOff, RefreshCw, Info, AlertTriangle
+  LogIn, LogOut, Users, ShieldCheck, Eye, EyeOff, Pencil, Smartphone, Sparkles, Database, WifiOff, RefreshCw, Info, AlertTriangle, Search, FileSpreadsheet
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 
-// ==========================================
-// ðŸ”´ PENGATURAN DATABASE GOOGLE APPS SCRIPT
-// ==========================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxhwZL3P4KWLp8r_LoUt6Oipb7TExmRQVM7PEUbgqyGqMp3hT4BnpRGOcGGDM5oxFdW/exec"; 
 
-// ==========================================
-// GEMINI API & AI UTILS
-// ==========================================
-// PENTING: Jangan isi dengan GAS_URL. Isi dengan API Key Gemini Anda jika ada.
 const apiKey = ""; 
 
 async function fetchGeminiAI(prompt) {
@@ -40,9 +33,6 @@ async function fetchGeminiAI(prompt) {
   }
 }
 
-// ==========================================
-// UTILITAS DASAR & FILTER TANGGAL (ANTI-BUG)
-// ==========================================
 const IceLogo = ({ className = "w-10 h-10 text-sky-500" }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
@@ -55,7 +45,10 @@ const pad = (n) => String(n).padStart(2, "0");
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const currentMonthStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
 const formatRupiah = (n) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
-const formatQty = (n) => Number(parseFloat(n || 0).toFixed(2)); // Fitur 2 Angka di Belakang Koma
+const formatQty = (n) => Number(parseFloat(n || 0).toFixed(2));
+
+const KATEGORI_PENGELUARAN_OWNER = ["Gaji", "Operasional", "Tempat", "Modal Es", "Transport", "Marketing", "Overhead", "Bonus", "Admin", "Lain-lain"];
+const KATEGORI_PEMASUKAN_OWNER = ["Pemasukan", "Tambahan Modal", "Bonus", "Lain-lain"];
 
 const getSafeDate = (val) => { 
   if (!val) return ""; 
@@ -111,9 +104,6 @@ function computeStockData(stockRecords, sales) {
   return result.sort((a, b) => (getSafeDate(b.tanggal) + b.cabang).localeCompare(getSafeDate(a.tanggal) + a.cabang));
 }
 
-// ==========================================
-// KOMPONEN UI KUSTOM & LOGIN
-// ==========================================
 const CustomDialog = ({ dialog, closeDialog }) => {
   if (!dialog.show) return null;
   const [inputValue, setInputValue] = useState("");
@@ -192,9 +182,9 @@ function LoginPage({ onLogin, installPrompt, isOnline, showToast }) {
         <div onKeyDown={(e) => e.key === "Enter" && submit()} className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-7 space-y-5 border border-white/50">
           <div><label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">Username</label><input value={username} onChange={(e) => setUsername(e.target.value)} disabled={isLoading} className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-50 transition-all bg-slate-50" placeholder="Masukkan username" autoComplete="username" /></div>
           <div><label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">Password</label>
-            <div className="relative"><input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-50 transition-all bg-slate-50 pr-12" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" autoComplete="current-password" /><button type="button" onClick={() => setShowPw((s) => !s)} disabled={isLoading} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-sky-600 transition-colors">{showPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button></div>
+            <div className="relative"><input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-50 transition-all bg-slate-50 pr-12" placeholder="********" autoComplete="current-password" /><button type="button" onClick={() => setShowPw((s) => !s)} disabled={isLoading} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-sky-600 transition-colors">{showPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button></div>
           </div>
-          {error && (<p className="text-red-600 text-xs font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 flex items-center gap-2">âš ï¸ {error}</p>)}
+          {error && (<p className="text-red-600 text-xs font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 flex items-center gap-2">! {error}</p>)}
           <button type="button" onClick={submit} disabled={isLoading} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 shadow-lg shadow-sky-500/30 transition-all text-white text-sm font-bold rounded-xl py-3.5 disabled:opacity-70 disabled:cursor-not-allowed">
             {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}{isLoading ? "Memverifikasi..." : "Masuk ke Sistem"}
           </button>
@@ -204,25 +194,18 @@ function LoginPage({ onLogin, installPrompt, isOnline, showToast }) {
     </div>
   );
 }
-
-// ==========================================
-// APLIKASI UTAMA
-// ==========================================
 export default function App() {
   const isOnline = Boolean(GAS_URL);
   const [appLoading, setAppLoading] = useState(false);
 
-  // Custom Notifications
   const [dialog, setDialog] = useState({ show: false, type: "", msg: "", title: "", onConfirm: null, isDestructive: false });
   const closeDialog = () => setDialog({ show: false, type: "", msg: "", title: "", onConfirm: null, isDestructive: false });
   const [toast, setToast] = useState({ show: false, msg: "", type: "info" });
   const showToast = (msg, type = "info") => { setToast({ show: true, msg, type }); setTimeout(() => setToast({ show: false, msg: "", type: "info" }), 3500); };
   const showAlert = (msg, title = "Perhatian", isError = false) => { setDialog({ show: true, type: isError ? "error" : "alert", msg, title }); };
 
-  // App States
   const [tab, setTab] = useState("kasir");
 
-  // FITUR BARU: Menyimpan pengaturan Cabang & Kategori ke LocalStorage agar tidak hilang
   const [cabangList, setCabangList] = useState(() => {
     try { const saved = localStorage.getItem("es_kristal_cabang"); if (saved) return JSON.parse(saved); } catch(e){}
     return ["Limbangan", "Wanaraja", "Ciawitali", "Tasik", "Ciamis"];
@@ -233,7 +216,6 @@ export default function App() {
     return ["Transport", "Maintenance", "Marketing", "Bensin", "Gaji", "Bonus"];
   });
 
-  // Efek untuk menyimpan setiap kali ada perubahan setting Cabang/Kategori
   useEffect(() => { localStorage.setItem("es_kristal_cabang", JSON.stringify(cabangList)); }, [cabangList]);
   useEffect(() => { localStorage.setItem("es_kristal_kategori", JSON.stringify(kategoriList)); }, [kategoriList]);
 
@@ -242,12 +224,10 @@ export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [stockRecords, setStockRecords] = useState([]);
 
-  // Auth States
   const [currentUser, setCurrentUser] = useState(null);
   const isAdmin = currentUser?.role === "admin";
   const myCabang = currentUser?.cabang || "";
 
-  // Modals & Forms
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState("cabang");
   const [newCabang, setNewCabang] = useState("");
@@ -263,7 +243,6 @@ export default function App() {
   const [formTab, setFormTab] = useState("penjualan");
   const [histTab, setHistTab] = useState("pemasukan");
 
-  // State untuk form & fungsi Edit
   const emptySaleForm = { id: null, tanggal: todayStr(), cabang: "", customer: "", jumlah: "", hargaEs: "", ongkir: "", diskon: "" };
   const [saleForm, setSaleForm] = useState(emptySaleForm);
   const emptyExpenseForm = { id: null, tanggal: todayStr(), cabang: "", kategori: "", jumlah: "", keterangan: "" };
@@ -278,12 +257,13 @@ export default function App() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiInsight, setAiInsight] = useState("");
 
+  // ==========================================
+  // KAS OWNER: Arus Kas (dulu "Catatan Transaksi Rahasia")
+  // ==========================================
   const [ownerNotes, setOwnerNotes] = useState([]);
-  const [bankRecords, setBankRecords] = useState([]);
-  const [bankInput, setBankInput] = useState("");
-  const bankBalance = bankRecords.length > 0 ? parseFloat(bankRecords[0].saldo) || 0 : 0;
+  const [ownerSubTab, setOwnerSubTab] = useState("ringkasan");
   const [ownerReportMonth, setOwnerReportMonth] = useState(currentMonthStr());
-  const emptyOwnerForm = { id: null, tanggal: todayStr(), cabang: "Semua Cabang", keterangan: "", jumlah: "", jenis: "keluar" };
+  const emptyOwnerForm = { id: null, tanggal: todayStr(), cabang: "Semua Cabang", keterangan: "", jumlah: "", jenis: "keluar", kategori: "" };
   const [ownerForm, setOwnerForm] = useState(emptyOwnerForm);
 
   const [ownerFilterDate, setOwnerFilterDate] = useState("");
@@ -303,8 +283,8 @@ export default function App() {
   const filteredOwnerKeluar = filteredOwnerNotes.filter(n => n.jenis === "keluar").reduce((a,n)=>a+parseFloat(n.jumlah||0),0);
 
   const addOwnerNote = () => {
-    if (!ownerForm.keterangan.trim() || !ownerForm.jumlah || parseFloat(ownerForm.jumlah) <= 0) {
-      return showAlert("Harap lengkapi Keterangan dan Jumlah.", "Data Belum Lengkap", true);
+    if (!ownerForm.keterangan.trim() || !ownerForm.jumlah || parseFloat(ownerForm.jumlah) <= 0 || !ownerForm.kategori) {
+      return showAlert("Harap lengkapi Kategori, Keterangan, dan Jumlah.", "Data Belum Lengkap", true);
     }
     const newNote = {
       id: ownerForm.id || "own_" + Date.now(),
@@ -313,27 +293,23 @@ export default function App() {
       keterangan: ownerForm.keterangan.trim(),
       jumlah: parseFloat(ownerForm.jumlah) || 0,
       jenis: ownerForm.jenis,
+      kategori: ownerForm.kategori,
     };
-    dbSave("OwnerNotes", newNote);
+    dbSave("OwnerNotes", newNote, "Arus Kas");
     setOwnerForm(emptyOwnerForm);
   };
 
   const removeOwnerNote = (id) => {
-    setDialog({ show: true, type: "confirm", isDestructive: true, title: "Hapus Catatan", msg: "Yakin hapus catatan ini?", onConfirm: () => { dbDelete("OwnerNotes", id); closeDialog(); } });
+    setDialog({ show: true, type: "confirm", isDestructive: true, title: "Hapus Catatan", msg: "Yakin hapus catatan Arus Kas ini?", onConfirm: () => { dbDelete("OwnerNotes", id, "Arus Kas"); closeDialog(); } });
   };
 
- const adjustBankBalance = (type) => {
-    if (bankInput === "" || isNaN(parseFloat(bankInput)) || parseFloat(bankInput) <= 0) return showAlert("Masukkan angka yang valid.", "Peringatan", true);
-    const amount = parseFloat(bankInput);
-    const newBalance = type === "tambah" ? bankBalance + amount : bankBalance - amount;
-    dbSave("BankBalance", { id: "current", saldo: newBalance, updatedAt: new Date().toISOString() });
-    setBankInput("");
-  };
-
-  const setBankBalanceManual = () => {
-    if (bankInput === "" || isNaN(parseFloat(bankInput))) return showAlert("Masukkan angka saldo yang valid.", "Peringatan", true);
-    dbSave("BankBalance", { id: "current", saldo: parseFloat(bankInput), updatedAt: new Date().toISOString() });
-    setBankInput("");
+  const exportOwnerNotesCSV = () => {
+    if (ownerNotes.length === 0) return showAlert("Tidak ada data Arus Kas.", "Kosong", true);
+    let csv = "Tanggal,Depot,Keterangan,Jenis,Kategori,Jumlah\n";
+    ownerNotes.forEach((n) => { csv += `"${formatTanggal(n.tanggal)}","${n.cabang || "Semua Cabang"}","${n.keterangan}","${n.jenis === "masuk" ? "Pemasukan" : "Pengeluaran"}","${n.kategori || "-"}",${n.jumlah}\n`; });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" }); const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob); link.download = `Arus_Kas_Es_Garuda.csv`;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   const realProfitByCabang = useMemo(() => {
@@ -343,21 +319,104 @@ export default function App() {
       const cOwnerNotes = ownerNotes.filter((n) => n.cabang === cabang && getSafeDate(n.tanggal).startsWith(ownerReportMonth));
       const pemasukan = cSales.reduce((a, s) => a + s.total, 0);
       const pengeluaranPegawai = cExpenses.reduce((a, e) => a + parseFloat(e.jumlah || 0), 0);
-      const rahasiaKeluar = cOwnerNotes.filter((n) => n.jenis === "keluar").reduce((a, n) => a + parseFloat(n.jumlah || 0), 0);
-      const rahasiaMasuk = cOwnerNotes.filter((n) => n.jenis === "masuk").reduce((a, n) => a + parseFloat(n.jumlah || 0), 0);
+      const kasKeluar = cOwnerNotes.filter((n) => n.jenis === "keluar").reduce((a, n) => a + parseFloat(n.jumlah || 0), 0);
+      const kasMasuk = cOwnerNotes.filter((n) => n.jenis === "masuk").reduce((a, n) => a + parseFloat(n.jumlah || 0), 0);
       const labaKotor = pemasukan - pengeluaranPegawai;
-      const labaRiil = labaKotor - rahasiaKeluar + rahasiaMasuk;
-      return { cabang, pemasukan, pengeluaranPegawai, rahasiaKeluar, rahasiaMasuk, labaKotor, labaRiil };
+      const labaRiil = labaKotor - kasKeluar + kasMasuk;
+      return { cabang, pemasukan, pengeluaranPegawai, kasKeluar, kasMasuk, labaKotor, labaRiil };
     });
   }, [sales, expenses, ownerNotes, cabangList, ownerReportMonth]);
 
   const generalOwnerNotes = useMemo(() => ownerNotes.filter((n) => (n.cabang === "Semua Cabang" || !n.cabang) && getSafeDate(n.tanggal).startsWith(ownerReportMonth)), [ownerNotes, ownerReportMonth]);
-  const generalRahasiaKeluar = generalOwnerNotes.filter((n) => n.jenis === "keluar").reduce((a, n) => a + parseFloat(n.jumlah || 0), 0);
-  const generalRahasiaMasuk = generalOwnerNotes.filter((n) => n.jenis === "masuk").reduce((a, n) => a + parseFloat(n.jumlah || 0), 0);
+  const generalKasKeluar = generalOwnerNotes.filter((n) => n.jenis === "keluar").reduce((a, n) => a + parseFloat(n.jumlah || 0), 0);
+  const generalKasMasuk = generalOwnerNotes.filter((n) => n.jenis === "masuk").reduce((a, n) => a + parseFloat(n.jumlah || 0), 0);
 
   const totalLabaKotorSemua = realProfitByCabang.reduce((a, r) => a + r.labaKotor, 0);
-  const totalLabaRiilSemua = realProfitByCabang.reduce((a, r) => a + r.labaRiil, 0) + generalRahasiaMasuk - generalRahasiaKeluar;
-  
+  const totalLabaRiilSemua = realProfitByCabang.reduce((a, r) => a + r.labaRiil, 0) + generalKasMasuk - generalKasKeluar;
+
+  // ==========================================
+  // HUTANG PIUTANG (dalam Kas Owner)
+  // ==========================================
+  const [hutangPiutangList, setHutangPiutangList] = useState([]);
+  const emptyHutangForm = { id: null, nama: "", jenis: "Hutang", jumlah: "", tanggal: todayStr(), keterangan: "", status: "Belum Lunas" };
+  const [hutangForm, setHutangForm] = useState(emptyHutangForm);
+  const [hutangSearch, setHutangSearch] = useState("");
+  const [hutangFilterStatus, setHutangFilterStatus] = useState("Semua");
+  const [hutangFilterDateFrom, setHutangFilterDateFrom] = useState("");
+  const [hutangFilterDateTo, setHutangFilterDateTo] = useState("");
+
+  const addHutang = () => {
+    if (!hutangForm.nama.trim() || !hutangForm.jumlah || parseFloat(hutangForm.jumlah) <= 0) {
+      return showAlert("Nama dan Jumlah wajib diisi.", "Data Belum Lengkap", true);
+    }
+    const item = {
+      id: hutangForm.id || "hp_" + Date.now(),
+      nama: hutangForm.nama.trim(),
+      jenis: hutangForm.jenis,
+      jumlah: parseFloat(hutangForm.jumlah) || 0,
+      tanggal: hutangForm.tanggal,
+      keterangan: hutangForm.keterangan.trim() || "-",
+      status: hutangForm.status,
+      updatedAt: new Date().toISOString(),
+    };
+    dbSave("HutangPiutang", item, "Hutang Piutang");
+    setHutangForm(emptyHutangForm);
+  };
+
+  const editHutang = (item) => {
+    setHutangForm({ ...item, tanggal: getSafeDate(item.tanggal) });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const removeHutang = (id) => {
+    setDialog({ show: true, type: "confirm", isDestructive: true, title: "Hapus Data", msg: "Yakin hapus data Hutang Piutang ini?", onConfirm: () => { dbDelete("HutangPiutang", id, "Hutang Piutang"); closeDialog(); } });
+  };
+
+  const toggleHutangStatus = (item) => {
+    dbSave("HutangPiutang", { ...item, status: item.status === "Lunas" ? "Belum Lunas" : "Lunas", updatedAt: new Date().toISOString() }, "Hutang Piutang");
+  };
+
+  const filteredHutangPiutang = useMemo(() => {
+    return hutangPiutangList.filter((h) => {
+      const matchSearch = !hutangSearch || h.nama.toLowerCase().includes(hutangSearch.toLowerCase()) || (h.keterangan || "").toLowerCase().includes(hutangSearch.toLowerCase());
+      const matchStatus = hutangFilterStatus === "Semua" || h.status === hutangFilterStatus;
+      const d = getSafeDate(h.tanggal);
+      const matchFrom = !hutangFilterDateFrom || d >= hutangFilterDateFrom;
+      const matchTo = !hutangFilterDateTo || d <= hutangFilterDateTo;
+      return matchSearch && matchStatus && matchFrom && matchTo;
+    });
+  }, [hutangPiutangList, hutangSearch, hutangFilterStatus, hutangFilterDateFrom, hutangFilterDateTo]);
+
+  const exportHutangCSV = () => {
+    if (hutangPiutangList.length === 0) return showAlert("Tidak ada data Hutang Piutang.", "Kosong", true);
+    let csv = "Nama,Jenis,Jumlah,Tanggal,Keterangan,Status\n";
+    hutangPiutangList.forEach((h) => { csv += `"${h.nama}","${h.jenis}",${h.jumlah},"${formatTanggal(h.tanggal)}","${h.keterangan}","${h.status}"\n`; });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" }); const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob); link.download = `Hutang_Piutang_Es_Garuda.csv`;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  };
+
+  // ==========================================
+  // SALDO REKENING BANK - REAL-TIME OTOMATIS
+  // Saldo = (Penjualan + Kas Owner Masuk) - (Pengeluaran + Kas Owner Keluar) - Hutang/Piutang Belum Lunas
+  // ==========================================
+  const totalPemasukanSemua = useMemo(() => {
+    const dariPenjualan = sales.reduce((a, s) => a + (s.total || 0), 0);
+    const dariKasOwnerMasuk = ownerNotes.filter((n) => n.jenis === "masuk").reduce((a, n) => a + parseFloat(n.jumlah || 0), 0);
+    return dariPenjualan + dariKasOwnerMasuk;
+  }, [sales, ownerNotes]);
+
+  const totalPengeluaranSemua = useMemo(() => {
+    const dariOperasional = expenses.reduce((a, e) => a + parseFloat(e.jumlah || 0), 0);
+    const dariKasOwnerKeluar = ownerNotes.filter((n) => n.jenis === "keluar").reduce((a, n) => a + parseFloat(n.jumlah || 0), 0);
+    return dariOperasional + dariKasOwnerKeluar;
+  }, [expenses, ownerNotes]);
+
+  const totalHutangPiutangBelumLunas = useMemo(() => {
+    return hutangPiutangList.filter((h) => h.status === "Belum Lunas").reduce((a, h) => a + parseFloat(h.jumlah || 0), 0);
+  }, [hutangPiutangList]);
+
+  const saldoRekeningOtomatis = totalPemasukanSemua - totalPengeluaranSemua - totalHutangPiutangBelumLunas;
 
   useEffect(() => {
     const handleBeforeInstall = (e) => { e.preventDefault(); setDeferredPrompt(e); };
@@ -370,7 +429,7 @@ export default function App() {
     else { showAlert("Gunakan menu 'Add to Home Screen' pada browser HP Anda untuk menginstal.", "Cara Install"); }
   };
 
- const loadData = async () => {
+  const loadData = async () => {
     setAppLoading(true);
     try {
       if (GAS_URL) {
@@ -378,13 +437,15 @@ export default function App() {
         const resData = await res.json();
         if (resData.success) {
           setUsers(resData.users || []); setSales(resData.sales || []); setExpenses(resData.expenses || []); setStockRecords(resData.stocks || []);
-          setOwnerNotes(resData.ownerNotes || []); setBankRecords(resData.bankBalance || []);
+          setOwnerNotes(resData.ownerNotes || []); setHutangPiutangList(resData.hutangPiutang || []);
           localStorage.setItem("es_kristal_users", JSON.stringify(resData.users || []));
           localStorage.setItem("es_kristal_sales", JSON.stringify(resData.sales || []));
           localStorage.setItem("es_kristal_expenses", JSON.stringify(resData.expenses || []));
           localStorage.setItem("es_kristal_stocks", JSON.stringify(resData.stocks || []));
           if (resData.ownerNotes) localStorage.setItem("es_kristal_owner_notes", JSON.stringify(resData.ownerNotes));
-          if (resData.bankBalance) localStorage.setItem("es_kristal_bank_records", JSON.stringify(resData.bankBalance));
+          if (resData.hutangPiutang) localStorage.setItem("es_kristal_hutang_piutang", JSON.stringify(resData.hutangPiutang));
+        } else {
+          showAlert(resData.error || "Gagal mengambil data dari Google Spreadsheet.", "Sinkronisasi Gagal", true);
         }
       } else {
         setUsers(JSON.parse(localStorage.getItem("es_kristal_users") || "[]"));
@@ -393,57 +454,63 @@ export default function App() {
         setStockRecords(JSON.parse(localStorage.getItem("es_kristal_stocks") || "[]"));
         if (currentUser?.role === "admin") {
           setOwnerNotes(JSON.parse(localStorage.getItem("es_kristal_owner_notes") || "[]"));
-          setBankRecords(JSON.parse(localStorage.getItem("es_kristal_bank_records") || "[]"));
+          setHutangPiutangList(JSON.parse(localStorage.getItem("es_kristal_hutang_piutang") || "[]"));
         }
       }
     } catch (e) {
-      showAlert("Gagal memuat data terbaru. Memuat cadangan offline.", "Koneksi Bermasalah", true);
+      showAlert("Gagal terhubung ke Google Spreadsheet. Memuat data cadangan offline. Periksa koneksi internet atau URL Apps Script.", "Koneksi Bermasalah", true);
       setUsers(JSON.parse(localStorage.getItem("es_kristal_users") || "[]")); setSales(JSON.parse(localStorage.getItem("es_kristal_sales") || "[]"));
       setExpenses(JSON.parse(localStorage.getItem("es_kristal_expenses") || "[]")); setStockRecords(JSON.parse(localStorage.getItem("es_kristal_stocks") || "[]"));
       if (currentUser?.role === "admin") {
         setOwnerNotes(JSON.parse(localStorage.getItem("es_kristal_owner_notes") || "[]"));
-        setBankRecords(JSON.parse(localStorage.getItem("es_kristal_bank_records") || "[]"));
+        setHutangPiutangList(JSON.parse(localStorage.getItem("es_kristal_hutang_piutang") || "[]"));
       }
     } finally { setAppLoading(false); }
   };
 
   useEffect(() => { if (currentUser) loadData(); }, [currentUser]);
 
- const dbSave = async (table, item) => {
-    const tableMap = { Users: setUsers, Sales: setSales, Expenses: setExpenses, Stocks: setStockRecords, OwnerNotes: setOwnerNotes, BankBalance: setBankRecords };
-    const localKey = { Users: "es_kristal_users", Sales: "es_kristal_sales", Expenses: "es_kristal_expenses", Stocks: "es_kristal_stocks", OwnerNotes: "es_kristal_owner_notes", BankBalance: "es_kristal_bank_records" };
+  const dbSave = async (table, item, labelSukses) => {
+    const tableMap = { Users: setUsers, Sales: setSales, Expenses: setExpenses, Stocks: setStockRecords, OwnerNotes: setOwnerNotes, HutangPiutang: setHutangPiutangList };
+    const localKey = { Users: "es_kristal_users", Sales: "es_kristal_sales", Expenses: "es_kristal_expenses", Stocks: "es_kristal_stocks", OwnerNotes: "es_kristal_owner_notes", HutangPiutang: "es_kristal_hutang_piutang" };
     tableMap[table]((prev) => {
       const exists = prev.find((x) => x.id === item.id);
       const newData = exists ? prev.map((x) => (x.id === item.id ? item : x)) : [...prev, item];
       localStorage.setItem(localKey[table], JSON.stringify(newData));
       return newData;
     });
-    if (GAS_URL) {
-      try {
-        const res = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "save", table, data: item }) });
-        const result = await res.json();
-        if (!result.success) throw new Error("Gagal server");
-      } catch (e) { showToast("Tersimpan offline, gagal ke Cloud.", "error"); return; }
+    if (!GAS_URL) { showToast((labelSukses || "Data") + " tersimpan (mode lokal, tidak tersambung Google Sheet)", "info"); return; }
+    try {
+      const res = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "save", table, data: item }) });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || "Gagal server");
+      showToast((labelSukses || "Data") + " tersimpan & tersinkron ke Google Spreadsheet", "success");
+      loadData();
+    } catch (e) {
+      showToast("Tersimpan lokal, GAGAL sinkron ke Google Spreadsheet: " + e.message, "error");
     }
-    showToast("Data tersimpan", "success"); loadData(); 
   };
 
-  const dbDelete = async (table, id) => {
-    const tableMap = { Users: setUsers, Sales: setSales, Expenses: setExpenses, Stocks: setStockRecords, OwnerNotes: setOwnerNotes, BankBalance: setBankRecords };
-    const localKey = { Users: "es_kristal_users", Sales: "es_kristal_sales", Expenses: "es_kristal_expenses", Stocks: "es_kristal_stocks", OwnerNotes: "es_kristal_owner_notes", BankBalance: "es_kristal_bank_records" };
+  const dbDelete = async (table, id, labelSukses) => {
+    const tableMap = { Users: setUsers, Sales: setSales, Expenses: setExpenses, Stocks: setStockRecords, OwnerNotes: setOwnerNotes, HutangPiutang: setHutangPiutangList };
+    const localKey = { Users: "es_kristal_users", Sales: "es_kristal_sales", Expenses: "es_kristal_expenses", Stocks: "es_kristal_stocks", OwnerNotes: "es_kristal_owner_notes", HutangPiutang: "es_kristal_hutang_piutang" };
     tableMap[table]((prev) => {
       const newData = prev.filter((x) => x.id !== id);
       localStorage.setItem(localKey[table], JSON.stringify(newData));
       return newData;
     });
-    if (GAS_URL) {
-      try { await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "delete", table, data: { id } }) }); } 
-      catch (e) { showToast("Gagal menghapus di server.", "error"); return; }
+    if (!GAS_URL) { showToast((labelSukses || "Data") + " dihapus (mode lokal)", "info"); return; }
+    try {
+      const res = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "delete", table, data: { id } }) });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || "Gagal server");
+      showToast((labelSukses || "Data") + " dihapus & tersinkron ke Google Spreadsheet", "success");
+      loadData();
+    } catch (e) {
+      showToast("Terhapus lokal, GAGAL sinkron hapus ke Google Spreadsheet: " + e.message, "error");
     }
-    showToast("Data dihapus", "success"); loadData(); 
   };
 
-  // UI Actions & Calculation Handlers
   const handleCabangSelect = (val, form, setForm) => {
     if (val === "__new__") {
       setDialog({ show: true, type: "prompt", msg: "Masukkan nama cabang baru:", title: "Cabang Baru",
@@ -496,7 +563,7 @@ export default function App() {
       diskon,
       total: totalBayar,
     };
-    dbSave("Sales", newSale);
+    dbSave("Sales", newSale, "Penjualan");
     setSaleForm({ ...emptySaleForm, tanggal: saleForm.tanggal, cabang: isAdmin ? saleForm.cabang : "" });
   };
 
@@ -525,7 +592,7 @@ export default function App() {
       tanggal: expenseForm.tanggal, cabang: cabangValue, kategori: expenseForm.kategori,
       jumlah: parseFloat(expenseForm.jumlah) || 0, keterangan: expenseForm.keterangan.trim() || "-",
     };
-    dbSave("Expenses", newExp);
+    dbSave("Expenses", newExp, "Pengeluaran");
     setExpenseForm({ ...emptyExpenseForm, tanggal: expenseForm.tanggal, cabang: isAdmin ? expenseForm.cabang : "" });
   };
 
@@ -538,7 +605,7 @@ export default function App() {
       esMasukHariIni: formatQty(stockForm.esMasukHariIni),
       sisaEsActual: formatQty(stockForm.sisaEsActual),
     };
-    dbSave("Stocks", rec);
+    dbSave("Stocks", rec, "Stok");
     setStockForm({ ...emptyStockForm, tanggal: stockForm.tanggal, cabang: isAdmin ? stockForm.cabang : "" });
   };
 
@@ -561,19 +628,18 @@ export default function App() {
     const uId = isNew ? "u_" + Date.now() : data.id;
     const existing = users.find((u) => u.id === data.id);
     const updatedUser = { id: uId, username: data.username, nama: data.nama, role: data.role, cabang: data.role === "admin" ? null : data.cabang, password: isNew || data.password ? data.password : existing?.password };
-    dbSave("Users", updatedUser); setShowUserModal(false); setEditingUser(null);
+    dbSave("Users", updatedUser, "Pengguna"); setShowUserModal(false); setEditingUser(null);
   };
 
   const removeUser = (id) => {
     if (currentUser && id === currentUser.id) return showAlert("Tidak bisa hapus akun Anda sendiri.", "Ditolak", true);
-    setDialog({ show: true, type: "confirm", isDestructive: true, title: "Hapus Pengguna", msg: "Yakin hapus akun ini?", onConfirm: () => { dbDelete("Users", id); closeDialog(); } });
+    setDialog({ show: true, type: "confirm", isDestructive: true, title: "Hapus Pengguna", msg: "Yakin hapus akun ini?", onConfirm: () => { dbDelete("Users", id, "Pengguna"); closeDialog(); } });
   };
 
   const confirmDeleteData = (table, id) => {
     setDialog({ show: true, type: "confirm", isDestructive: true, title: "Hapus Data", msg: "Yakin hapus data ini?", onConfirm: () => { dbDelete(table, id); closeDialog(); } });
   };
 
-  // Kalkulasi & Filtering
   const effectiveFilterCabang = isAdmin ? filterCabang : myCabang;
   const filteredSales = useMemo(() => sales.filter((s) => getSafeDate(s.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || s.cabang === effectiveFilterCabang)), [sales, filterDate, effectiveFilterCabang]);
   const filteredExpenses = useMemo(() => expenses.filter((e) => getSafeDate(e.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || e.cabang === effectiveFilterCabang)), [expenses, filterDate, effectiveFilterCabang]);
@@ -647,12 +713,10 @@ export default function App() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
-  // FITUR BARU: Generate Struk Menjadi Gambar (PNG)
   const handleDownloadStruk = (item) => {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     
-    // Hitung tinggi struk (dinamis jika ada diskon/ongkir)
     let height = 360;
     if (parseFloat(item.ongkir) > 0) height += 30;
     if (parseFloat(item.diskon) > 0) height += 30;
@@ -660,14 +724,11 @@ export default function App() {
     canvas.width = 400;
     canvas.height = height;
 
-    // Background Putih
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Styling Teks Hitam
     ctx.fillStyle = "#000000";
     
-    // Header
     ctx.font = "bold 22px monospace";
     ctx.textAlign = "center";
     ctx.fillText("ES KRISTAL GARUDA", 200, 40);
@@ -676,7 +737,6 @@ export default function App() {
     ctx.fillText(`Cabang: ${item.cabang}`, 200, 65);
     ctx.fillText("----------------------------------", 200, 85);
 
-    // Info Pelanggan
     ctx.textAlign = "left";
     ctx.fillText(`Tgl   : ${formatTanggal(item.tanggal)}`, 20, 110);
     ctx.fillText(`Plgn  : ${item.customer}`, 20, 135);
@@ -684,13 +744,11 @@ export default function App() {
     ctx.textAlign = "center";
     ctx.fillText("----------------------------------", 200, 160);
 
-    // Judul Item
     ctx.textAlign = "left";
     ctx.fillText("Item", 20, 185);
     ctx.textAlign = "right";
     ctx.fillText("Subtotal", 380, 185);
 
-    // Rincian Item
     ctx.textAlign = "left";
     ctx.fillText(`Es Kristal (${formatQty(item.jumlah)} Bks)`, 20, 215);
     ctx.textAlign = "right";
@@ -698,7 +756,6 @@ export default function App() {
 
     let currentY = 245;
     
-    // Ongkir jika ada
     if (parseFloat(item.ongkir) > 0) {
       ctx.textAlign = "left";
       ctx.fillText("Ongkos Kirim", 20, currentY);
@@ -707,7 +764,6 @@ export default function App() {
       currentY += 30;
     }
 
-    // Diskon jika ada
     if (parseFloat(item.diskon) > 0) {
       ctx.textAlign = "left";
       ctx.fillText("Diskon", 20, currentY);
@@ -716,25 +772,21 @@ export default function App() {
       currentY += 30;
     }
 
-    // Garis Bawah
     ctx.textAlign = "center";
     ctx.fillText("----------------------------------", 200, currentY);
     currentY += 30;
 
-    // Total Bayar
     ctx.textAlign = "left";
     ctx.font = "bold 18px monospace";
     ctx.fillText("TOTAL BAYAR", 20, currentY);
     ctx.textAlign = "right";
     ctx.fillText(formatRupiah(item.total), 380, currentY);
 
-    // Footer
     currentY += 40;
     ctx.textAlign = "center";
     ctx.font = "italic 14px monospace";
     ctx.fillText("Terima kasih atas pembelian Anda!", 200, currentY);
 
-    // Trigger Download
     const link = document.createElement("a");
     link.download = `Struk_${item.customer.replace(/\s+/g, '_')}_${item.tanggal}.png`;
     link.href = canvas.toDataURL("image/png");
@@ -748,19 +800,20 @@ export default function App() {
   const tabBtnClass = (active) => `flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition ${active ? "border-sky-500 text-sky-600 bg-sky-50" : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50"}`;
   const inputClass = "w-full border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 transition-all bg-white";
   const labelClass = "block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide";
+  const ownerSubTabClass = (active) => `px-4 py-2.5 rounded-xl text-sm font-bold transition ${active ? "bg-sky-500 text-white shadow-sm" : "bg-white text-slate-500 hover:bg-slate-100 border border-slate-200"}`;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-sky-200 pb-20">
       <CustomDialog dialog={dialog} closeDialog={closeDialog} />
       {toast.show && (
-        <div className={`fixed top-20 right-6 z-[90] px-5 py-3 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 animate-in slide-in-from-right-8 duration-300 ${toast.type === "error" ? "bg-red-600 text-white" : "bg-slate-800 text-white"}`}>
-          {toast.type === "error" ? <AlertTriangle className="w-4 h-4" /> : <Info className="w-4 h-4" />} {toast.msg}
+        <div className={`fixed top-20 right-6 z-[90] px-5 py-3 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 animate-in slide-in-from-right-8 duration-300 max-w-sm ${toast.type === "error" ? "bg-red-600 text-white" : toast.type === "success" ? "bg-emerald-600 text-white" : "bg-slate-800 text-white"}`}>
+          {toast.type === "error" ? <AlertTriangle className="w-4 h-4 flex-shrink-0" /> : <Info className="w-4 h-4 flex-shrink-0" />} <span>{toast.msg}</span>
         </div>
       )}
 
       {/* HEADER */}
       <header className="bg-gradient-to-r from-sky-700 to-blue-800 text-white px-4 sm:px-6 py-3 flex items-center justify-between flex-wrap gap-4 shadow-md sticky top-0 z-40 print:hidden">
-     <div className="flex items-center gap-3 font-bold text-lg tracking-wide"><div className="bg-white/10 p-1.5 rounded-lg"><img src="/logo192.png" alt="Es Kristal Garuda" className="w-8 h-8 object-contain" /></div> Es Kristal Garuda</div>
+        <div className="flex items-center gap-3 font-bold text-lg tracking-wide"><div className="bg-white/10 p-1.5 rounded-lg"><img src="/logo192.png" alt="Es Kristal Garuda" className="w-8 h-8 object-contain" /></div> Es Kristal Garuda</div>
         <nav className="flex gap-1.5 bg-white/10 rounded-xl p-1.5 flex-wrap overflow-x-auto">
           {navItems.map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} className={`px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${tab === key ? "bg-white text-sky-700 shadow-sm" : "text-sky-100 hover:bg-white/20"}`}>{label}</button>
@@ -778,10 +831,9 @@ export default function App() {
       {/* MAIN CONTENT */}
       <main className="max-w-7xl mx-auto p-4 sm:p-6">
         
-        {/* TAB KASIR */}
+        {/* TAB KASIR / DASHBOARD */}
         {tab === "kasir" && (
           <div className="animate-in fade-in duration-500">
-            {/* Header Filter */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5 items-end">
               <div><label className={labelClass}>Tanggal</label><input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Cabang</label>
@@ -794,7 +846,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Rekap Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
               <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm relative overflow-hidden">
                 <div className="absolute -right-4 -top-4 opacity-5"><Snowflake className="w-24 h-24" /></div>
@@ -816,7 +867,19 @@ export default function App() {
               </div>
             </div>
 
-            {/* Input & Table */}
+            {isAdmin && (
+              <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-5 mb-8 shadow-lg flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="bg-sky-500/20 p-2.5 rounded-xl"><Wallet className="w-6 h-6 text-sky-300" /></div>
+                  <div>
+                    <div className="text-sky-300 text-xs font-bold uppercase">Saldo Rekening (Real-time, Khusus Admin)</div>
+                    <p className="text-2xl font-black text-white">{formatRupiah(saldoRekeningOtomatis)}</p>
+                  </div>
+                </div>
+                <span className="text-[11px] text-slate-400">Otomatis dari seluruh Pemasukan âˆ’ Pengeluaran âˆ’ Hutang/Piutang Belum Lunas</span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               <div className="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="flex border-b border-slate-200 bg-slate-50">
@@ -894,7 +957,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Table History */}
               <div className="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="flex border-b border-slate-200 bg-slate-50">
                   <button onClick={() => setHistTab("pemasukan")} className={`flex-1 ${tabBtnClass(histTab === "pemasukan")}`}>Riwayat Masuk</button>
@@ -929,7 +991,6 @@ export default function App() {
                             {formatRupiah(histTab === "pemasukan" ? item.total : item.jumlah)}
                           </td>
                           <td className="px-5 py-4 text-right">
-                            {/* PEGAWAI KINI BISA MENGHAPUS & EDIT DATA CABANGNYA SENDIRI */}
                             {(isAdmin || item.cabang === myCabang) && (
                               <div className="flex justify-end gap-1.5">
                                 {histTab === "pemasukan" && (
@@ -937,7 +998,7 @@ export default function App() {
                                     <Printer className="w-4 h-4" />
                                   </button>
                                 )}
-                              <button onClick={() => { if (histTab === "pemasukan") { editSale(item); } else { setExpenseForm(item); setFormTab("pengeluaran"); } }} className="p-1.5 hover:bg-sky-50 rounded-lg text-slate-400 hover:text-sky-600">
+                                <button onClick={() => { if (histTab === "pemasukan") { editSale(item); } else { setExpenseForm(item); setFormTab("pengeluaran"); } }} className="p-1.5 hover:bg-sky-50 rounded-lg text-slate-400 hover:text-sky-600">
                                   <Pencil className="w-4 h-4" />
                                 </button>
                                 <button onClick={() => confirmDeleteData(histTab === "pemasukan" ? "Sales" : "Expenses", item.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500">
@@ -1020,7 +1081,6 @@ export default function App() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right flex justify-end gap-1.5">
-                          {/* PEGAWAI KINI BISA MENGHAPUS & EDIT DATA STOKNYA SENDIRI */}
                           {(isAdmin || r.cabang === myCabang) && (
                             <>
                               <button onClick={() => editStock(r)} className="p-1 hover:bg-sky-50 rounded text-slate-300 hover:text-sky-600"><Pencil className="w-4 h-4" /></button>
@@ -1037,9 +1097,18 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB LAPORAN & PENGGUNA - HANYA ADMIN */}
+        {/* TAB LAPORAN - HANYA ADMIN */}
         {tab === "laporan" && isAdmin && (
           <div className="animate-in fade-in duration-500">
+            <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-5 mb-6 shadow-lg flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="bg-sky-500/20 p-2.5 rounded-xl"><Wallet className="w-6 h-6 text-sky-300" /></div>
+                <div>
+                  <div className="text-sky-300 text-xs font-bold uppercase">Saldo Rekening (Real-time)</div>
+                  <p className="text-2xl font-black text-white">{formatRupiah(saldoRekeningOtomatis)}</p>
+                </div>
+              </div>
+            </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5">
               <div><label className={labelClass}>Bulan</label><input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} className={inputClass} /></div>
               <button onClick={() => window.print()} className="ml-auto mt-auto bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex gap-2"><Printer className="w-4 h-4" /> Cetak PDF</button>
@@ -1096,173 +1165,311 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB KAS OWNER - HANYA ADMIN */}
         {tab === "owner" && isAdmin && (
           <div className="animate-in fade-in duration-500">
             <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 mb-6 flex items-center gap-3">
               <ShieldCheck className="w-6 h-6 text-amber-600 flex-shrink-0" />
-              <p className="text-sm text-amber-800 font-semibold">Halaman ini rahasia - hanya Super Admin yang bisa melihat.. Data tidak pernah dikirim ke akun Pegawai.</p>
+              <p className="text-sm text-amber-800 font-semibold">Halaman ini rahasia - hanya Super Admin yang bisa melihat. Data tidak pernah dikirim ke akun Pegawai.</p>
             </div>
 
-            <div className="bg-slate-800 rounded-2xl p-6 shadow-lg mb-6 relative overflow-hidden">
-              <div className="absolute right-0 top-0 w-40 h-40 bg-sky-500/10 rounded-full blur-2xl"></div>
-              <div className="text-sky-400 text-sm font-bold uppercase mb-2 flex items-center gap-2"><Wallet className="w-5 h-5" /> Saldo Rekening Bank Saat Ini</div>
-              <p className="text-4xl font-black text-white mb-4">{formatRupiah(bankBalance)}</p>
-             <div className="flex gap-2 flex-wrap">
-                <input type="number" placeholder="Masukkan jumlah" value={bankInput} onChange={(e) => setBankInput(e.target.value)} className="flex-1 min-w-[150px] border-2 border-slate-600 bg-slate-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500" />
-                <button onClick={() => adjustBankBalance("tambah")} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 rounded-xl text-sm">+ Tambah</button>
-                <button onClick={() => adjustBankBalance("kurangi")} className="bg-red-500 hover:bg-red-600 text-white font-bold px-5 rounded-xl text-sm">- Kurangi</button>
-              </div>
+            <div className="flex gap-2 mb-6 flex-wrap">
+              <button onClick={() => setOwnerSubTab("ringkasan")} className={ownerSubTabClass(ownerSubTab === "ringkasan")}>Ringkasan & Saldo</button>
+              <button onClick={() => setOwnerSubTab("aruskas")} className={ownerSubTabClass(ownerSubTab === "aruskas")}>Arus Kas</button>
+              <button onClick={() => setOwnerSubTab("hutangpiutang")} className={ownerSubTabClass(ownerSubTab === "hutangpiutang")}>Hutang Piutang</button>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5 items-end">
-              <div><label className={labelClass}>Bulan Laporan Laba Riil</label><input type="month" value={ownerReportMonth} onChange={(e) => setOwnerReportMonth(e.target.value)} className={inputClass} /></div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
-              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                <div className="text-sky-600 text-sm font-bold uppercase mb-3">Laba Kotor (Sebelum Gaji/Rahasia)</div>
-                <p className="text-3xl font-black text-slate-800">{formatRupiah(totalLabaKotorSemua)}</p>
-              </div>
-              <div className="bg-slate-800 rounded-2xl p-5 shadow-lg">
-                <div className="text-sky-400 text-sm font-bold uppercase mb-3">Laba Bersih Riil (Semua Depot)</div>
-                <p className="text-3xl font-black text-white">{formatRupiah(totalLabaRiilSemua)}</p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-              <div className="p-5 border-b border-slate-200 bg-slate-50"><h3 className="font-black text-lg">Laba Bersih Riil per Depot” {ownerReportMonth}</h3></div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-100 border-b border-slate-200">
-                    <tr className="text-[11px] uppercase text-slate-600">
-                      <th className="px-4 py-3">Cabang</th>
-                      <th className="px-4 py-3">Pemasukan</th>
-                      <th className="px-4 py-3">Peng. Pegawai</th>
-                      <th className="px-4 py-3 bg-slate-200/50">Laba Kotor</th>
-                     <th className="px-4 py-3 text-red-600">Pengeluaran Kas</th>
-                      <th className="px-4 py-3 text-emerald-600">Pemasukan Kas</th>
-                      <th className="px-4 py-3 font-black">Laba Riil</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {realProfitByCabang.map((r) => (
-                      <tr key={r.cabang} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-bold text-sky-600">{r.cabang}</td>
-                        <td className="px-4 py-3">{formatRupiah(r.pemasukan)}</td>
-                        <td className="px-4 py-3 text-red-500">{formatRupiah(r.pengeluaranPegawai)}</td>
-                        <td className="px-4 py-3 font-bold bg-slate-50">{formatRupiah(r.labaKotor)}</td>
-                        <td className="px-4 py-3 text-red-600">{formatRupiah(r.rahasiaKeluar)}</td>
-                        <td className="px-4 py-3 text-emerald-600">{formatRupiah(r.rahasiaMasuk)}</td>
-                        <td className="px-4 py-3 font-black text-slate-800">{formatRupiah(r.labaRiil)}</td>
-                      </tr>
-                    ))}
-                    {(generalRahasiaKeluar > 0 || generalRahasiaMasuk > 0) && (
-                      <tr className="bg-amber-50">
-                        <td className="px-4 py-3 font-bold text-amber-700" colSpan={4}>Biaya Umum (Semua Cabang)</td>
-                        <td className="px-4 py-3 text-red-600">{formatRupiah(generalRahasiaKeluar)}</td>
-                        <td className="px-4 py-3 text-emerald-600">{formatRupiah(generalRahasiaMasuk)}</td>
-                        <td className="px-4 py-3 font-black">{formatRupiah(generalRahasiaMasuk - generalRahasiaKeluar)}</td>
-                      </tr>
-                    )}
-                    <tr className="bg-slate-800 text-white font-black">
-                      <td className="px-4 py-3" colSpan={3}>TOTAL SEMUA DEPOT</td>
-                      <td className="px-4 py-3">{formatRupiah(totalLabaKotorSemua)}</td>
-                      <td className="px-4 py-3" colSpan={2}></td>
-                      <td className="px-4 py-3 text-sky-300">{formatRupiah(totalLabaRiilSemua)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
-              <h3 className="font-black text-lg mb-4">Catat Transaksi Rahasia (Gaji, dll)</h3>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                <div><label className={labelClass}>Tanggal</label><input type="date" value={ownerForm.tanggal} onChange={(e) => setOwnerForm({ ...ownerForm, tanggal: e.target.value })} className={inputClass} /></div>
-                <div><label className={labelClass}>Depot Terkait</label>
-                  <select value={ownerForm.cabang} onChange={(e) => setOwnerForm({ ...ownerForm, cabang: e.target.value })} className={inputClass}>
-                    <option value="Semua Cabang">Semua Cabang (Umum)</option>
-                    {cabangList.map((c) => (<option key={c} value={c}>{c}</option>))}
-                  </select>
-                </div>
-               <div><label className={labelClass}>Jenis</label>
-                  <select value={ownerForm.jenis} onChange={(e) => setOwnerForm({ ...ownerForm, jenis: e.target.value })} className={inputClass}>
-                    <option value="keluar">- Kurangi (Pengeluaran Kas)</option>
-                    <option value="masuk">+ Tambah (Pemasukan Kas)</option>
-                  </select>
-                </div>
-                <div><label className={labelClass}>Jumlah (Rp)</label><input type="number" value={ownerForm.jumlah} onChange={(e) => setOwnerForm({ ...ownerForm, jumlah: e.target.value })} className={inputClass} /></div>
-                <button onClick={addOwnerNote} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl">Simpan</button>
-              </div>
-              <div className="mt-4"><label className={labelClass}>Keterangan</label><input type="text" placeholder="Mis: Gaji Karyawan Depot Limbangan Bulan Juli" value={ownerForm.keterangan} onChange={(e) => setOwnerForm({ ...ownerForm, keterangan: e.target.value })} className={inputClass} /></div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
-              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                <div className="text-emerald-600 text-sm font-bold uppercase mb-3">Total Pemasukan (Sesuai Filter)</div>
-                <p className="text-3xl font-black text-slate-800">{formatRupiah(filteredOwnerMasuk)}</p>
-              </div>
-              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                <div className="text-red-500 text-sm font-bold uppercase mb-3">Total Pengeluaran (Sesuai Filter)</div>
-                <p className="text-3xl font-black text-slate-800">{formatRupiah(filteredOwnerKeluar)}</p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="p-5 border-b border-slate-200 bg-slate-50 flex flex-wrap gap-4 items-end justify-between">
-                <h3 className="font-black text-lg">Riwayat Catatan Rahasia</h3>
-                <div className="flex flex-wrap gap-3">
-                  <div><label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Tanggal</label><input type="date" value={ownerFilterDate} onChange={(e) => setOwnerFilterDate(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium" /></div>
-                  <div><label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Depot</label>
-                    <select value={ownerFilterCabang} onChange={(e) => setOwnerFilterCabang(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium">
-                      <option>Semua Cabang</option>{cabangList.map((c) => (<option key={c}>{c}</option>))}
-                    </select>
+            {/* SUB TAB: RINGKASAN & SALDO */}
+            {ownerSubTab === "ringkasan" && (
+              <div className="animate-in fade-in duration-300">
+                <div className="bg-slate-800 rounded-2xl p-6 shadow-lg mb-6 relative overflow-hidden">
+                  <div className="absolute right-0 top-0 w-40 h-40 bg-sky-500/10 rounded-full blur-2xl"></div>
+                  <div className="text-sky-400 text-sm font-bold uppercase mb-2 flex items-center gap-2"><Wallet className="w-5 h-5" /> Saldo Rekening Bank Saat Ini (Real-time)</div>
+                  <p className="text-4xl font-black text-white mb-4">{formatRupiah(saldoRekeningOtomatis)}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <div className="text-emerald-300 font-bold uppercase mb-1">Total Pemasukan</div>
+                      <div className="text-white font-black text-base">{formatRupiah(totalPemasukanSemua)}</div>
+                    </div>
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <div className="text-red-300 font-bold uppercase mb-1">Total Pengeluaran</div>
+                      <div className="text-white font-black text-base">{formatRupiah(totalPengeluaranSemua)}</div>
+                    </div>
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <div className="text-amber-300 font-bold uppercase mb-1">Hutang/Piutang Belum Lunas</div>
+                      <div className="text-white font-black text-base">{formatRupiah(totalHutangPiutangBelumLunas)}</div>
+                    </div>
                   </div>
-                  <div><label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Jenis</label>
-                    <select value={ownerFilterJenis} onChange={(e) => setOwnerFilterJenis(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium">
-                     <option value="semua">Semua</option><option value="masuk">Pemasukan</option><option value="keluar">Pengeluaran</option>
-                    </select>
+                  <p className="text-[11px] text-slate-400 mt-4">Saldo dihitung otomatis dan real-time dari seluruh Penjualan, Pengeluaran, Arus Kas, dan Hutang/Piutang. Tidak perlu refresh halaman.</p>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5 items-end">
+                  <div><label className={labelClass}>Bulan Laporan Laba Riil</label><input type="month" value={ownerReportMonth} onChange={(e) => setOwnerReportMonth(e.target.value)} className={inputClass} /></div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
+                  <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                    <div className="text-sky-600 text-sm font-bold uppercase mb-3">Laba Kotor (Sebelum Gaji/Arus Kas)</div>
+                    <p className="text-3xl font-black text-slate-800">{formatRupiah(totalLabaKotorSemua)}</p>
                   </div>
-                  {(ownerFilterDate || ownerFilterCabang !== "Semua Cabang" || ownerFilterJenis !== "semua") && (
-                    <button onClick={() => { setOwnerFilterDate(""); setOwnerFilterCabang("Semua Cabang"); setOwnerFilterJenis("semua"); }} className="self-end text-xs font-bold text-slate-400 hover:text-red-500 px-2 py-1.5">Reset</button>
+                  <div className="bg-slate-800 rounded-2xl p-5 shadow-lg">
+                    <div className="text-sky-400 text-sm font-bold uppercase mb-3">Laba Bersih Riil (Semua Depot)</div>
+                    <p className="text-3xl font-black text-white">{formatRupiah(totalLabaRiilSemua)}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+                  <div className="p-5 border-b border-slate-200 bg-slate-50"><h3 className="font-black text-lg">Laba Bersih Riil per Depot - {ownerReportMonth}</h3></div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-slate-100 border-b border-slate-200">
+                        <tr className="text-[11px] uppercase text-slate-600">
+                          <th className="px-4 py-3">Cabang</th>
+                          <th className="px-4 py-3">Pemasukan</th>
+                          <th className="px-4 py-3">Peng. Pegawai</th>
+                          <th className="px-4 py-3 bg-slate-200/50">Laba Kotor</th>
+                          <th className="px-4 py-3 text-red-600">Pengeluaran Kas</th>
+                          <th className="px-4 py-3 text-emerald-600">Pemasukan Kas</th>
+                          <th className="px-4 py-3 font-black">Laba Riil</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {realProfitByCabang.map((r) => (
+                          <tr key={r.cabang} className="hover:bg-slate-50">
+                            <td className="px-4 py-3 font-bold text-sky-600">{r.cabang}</td>
+                            <td className="px-4 py-3">{formatRupiah(r.pemasukan)}</td>
+                            <td className="px-4 py-3 text-red-500">{formatRupiah(r.pengeluaranPegawai)}</td>
+                            <td className="px-4 py-3 font-bold bg-slate-50">{formatRupiah(r.labaKotor)}</td>
+                            <td className="px-4 py-3 text-red-600">{formatRupiah(r.kasKeluar)}</td>
+                            <td className="px-4 py-3 text-emerald-600">{formatRupiah(r.kasMasuk)}</td>
+                            <td className="px-4 py-3 font-black text-slate-800">{formatRupiah(r.labaRiil)}</td>
+                          </tr>
+                        ))}
+                        {(generalKasKeluar > 0 || generalKasMasuk > 0) && (
+                          <tr className="bg-amber-50">
+                            <td className="px-4 py-3 font-bold text-amber-700" colSpan={4}>Biaya Umum (Semua Cabang)</td>
+                            <td className="px-4 py-3 text-red-600">{formatRupiah(generalKasKeluar)}</td>
+                            <td className="px-4 py-3 text-emerald-600">{formatRupiah(generalKasMasuk)}</td>
+                            <td className="px-4 py-3 font-black">{formatRupiah(generalKasMasuk - generalKasKeluar)}</td>
+                          </tr>
+                        )}
+                        <tr className="bg-slate-800 text-white font-black">
+                          <td className="px-4 py-3" colSpan={3}>TOTAL SEMUA DEPOT</td>
+                          <td className="px-4 py-3">{formatRupiah(totalLabaKotorSemua)}</td>
+                          <td className="px-4 py-3" colSpan={2}></td>
+                          <td className="px-4 py-3 text-sky-300">{formatRupiah(totalLabaRiilSemua)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB TAB: ARUS KAS */}
+            {ownerSubTab === "aruskas" && (
+              <div className="animate-in fade-in duration-300">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                    <h3 className="font-black text-lg">Catat Arus Kas</h3>
+                    <button onClick={exportOwnerNotesCSV} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold"><FileSpreadsheet className="w-4 h-4" /> Export Excel</button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
+                    <div><label className={labelClass}>Tanggal</label><input type="date" value={ownerForm.tanggal} onChange={(e) => setOwnerForm({ ...ownerForm, tanggal: e.target.value })} className={inputClass} /></div>
+                    <div><label className={labelClass}>Depot Terkait</label>
+                      <select value={ownerForm.cabang} onChange={(e) => setOwnerForm({ ...ownerForm, cabang: e.target.value })} className={inputClass}>
+                        <option value="Semua Cabang">Semua Cabang (Umum)</option>
+                        {cabangList.map((c) => (<option key={c} value={c}>{c}</option>))}
+                      </select>
+                    </div>
+                    <div><label className={labelClass}>Jenis</label>
+                      <select value={ownerForm.jenis} onChange={(e) => setOwnerForm({ ...ownerForm, jenis: e.target.value, kategori: "" })} className={inputClass}>
+                        <option value="keluar">- Kurangi (Pengeluaran Kas)</option>
+                        <option value="masuk">+ Tambah (Pemasukan Kas)</option>
+                      </select>
+                    </div>
+                    <div><label className={labelClass}>Kategori</label>
+                      <select value={ownerForm.kategori} onChange={(e) => setOwnerForm({ ...ownerForm, kategori: e.target.value })} className={inputClass}>
+                        <option value="">Pilih Kategori...</option>
+                        {(ownerForm.jenis === "masuk" ? KATEGORI_PEMASUKAN_OWNER : KATEGORI_PENGELUARAN_OWNER).map((k) => (<option key={k} value={k}>{k}</option>))}
+                      </select>
+                    </div>
+                    <div><label className={labelClass}>Jumlah (Rp)</label><input type="number" value={ownerForm.jumlah} onChange={(e) => setOwnerForm({ ...ownerForm, jumlah: e.target.value })} className={inputClass} /></div>
+                    <button onClick={addOwnerNote} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl">{ownerForm.id ? "Update" : "Simpan"}</button>
+                  </div>
+                  <div className="mt-4"><label className={labelClass}>Keterangan</label><input type="text" placeholder="Mis: Gaji Karyawan Depot Limbangan Bulan Juli" value={ownerForm.keterangan} onChange={(e) => setOwnerForm({ ...ownerForm, keterangan: e.target.value })} className={inputClass} /></div>
+                  {ownerForm.id && (
+                    <button onClick={() => setOwnerForm(emptyOwnerForm)} className="mt-3 text-xs font-bold text-slate-400 hover:text-red-500">Batal edit, buat catatan baru</button>
                   )}
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
+                  <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                    <div className="text-emerald-600 text-sm font-bold uppercase mb-3">Total Pemasukan (Sesuai Filter)</div>
+                    <p className="text-3xl font-black text-slate-800">{formatRupiah(filteredOwnerMasuk)}</p>
+                  </div>
+                  <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                    <div className="text-red-500 text-sm font-bold uppercase mb-3">Total Pengeluaran (Sesuai Filter)</div>
+                    <p className="text-3xl font-black text-slate-800">{formatRupiah(filteredOwnerKeluar)}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="p-5 border-b border-slate-200 bg-slate-50 flex flex-wrap gap-4 items-end justify-between">
+                    <h3 className="font-black text-lg">Riwayat Arus Kas</h3>
+                    <div className="flex flex-wrap gap-3">
+                      <div><label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Tanggal</label><input type="date" value={ownerFilterDate} onChange={(e) => setOwnerFilterDate(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium" /></div>
+                      <div><label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Depot</label>
+                        <select value={ownerFilterCabang} onChange={(e) => setOwnerFilterCabang(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium">
+                          <option>Semua Cabang</option>{cabangList.map((c) => (<option key={c}>{c}</option>))}
+                        </select>
+                      </div>
+                      <div><label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Jenis</label>
+                        <select value={ownerFilterJenis} onChange={(e) => setOwnerFilterJenis(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium">
+                          <option value="semua">Semua</option><option value="masuk">Pemasukan</option><option value="keluar">Pengeluaran</option>
+                        </select>
+                      </div>
+                      {(ownerFilterDate || ownerFilterCabang !== "Semua Cabang" || ownerFilterJenis !== "semua") && (
+                        <button onClick={() => { setOwnerFilterDate(""); setOwnerFilterCabang("Semua Cabang"); setOwnerFilterJenis("semua"); }} className="self-end text-xs font-bold text-slate-400 hover:text-red-500 px-2 py-1.5">Reset</button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr className="text-[11px] uppercase tracking-wider text-slate-500">
+                          <th className="px-5 py-3 font-bold">Tanggal</th>
+                          <th className="px-5 py-3 font-bold">Depot</th>
+                          <th className="px-5 py-3 font-bold">Keterangan</th>
+                          <th className="px-5 py-3 font-bold">Jenis</th>
+                          <th className="px-5 py-3 font-bold">Kategori</th>
+                          <th className="px-5 py-3 font-bold">Jumlah</th>
+                          <th className="px-5 py-3"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredOwnerNotes.length === 0 && (
+                          <tr><td colSpan={7} className="text-center text-slate-400 py-12">Tidak ada catatan sesuai filter.</td></tr>
+                        )}
+                        {filteredOwnerNotes.slice().sort((a,b)=>getSafeDate(b.tanggal).localeCompare(getSafeDate(a.tanggal))).map((n) => (
+                          <tr key={n.id} className="hover:bg-slate-50">
+                            <td className="px-5 py-4 text-slate-600">{formatTanggal(n.tanggal)}</td>
+                            <td className="px-5 py-4 font-bold text-sky-600">{n.cabang || "Semua Cabang"}</td>
+                            <td className="px-5 py-4 font-medium">{n.keterangan}</td>
+                            <td className="px-5 py-4">
+                              <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${n.jenis === "masuk" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{n.jenis === "masuk" ? "Pemasukan" : "Pengeluaran"}</span>
+                            </td>
+                            <td className="px-5 py-4 text-slate-600">{n.kategori || "-"}</td>
+                            <td className={`px-5 py-4 font-black ${n.jenis === "masuk" ? "text-emerald-600" : "text-red-500"}`}>{formatRupiah(n.jumlah)}</td>
+                            <td className="px-5 py-4 text-right">
+                              <button onClick={() => setOwnerForm({ ...n, tanggal: getSafeDate(n.tanggal) })} className="p-1.5 hover:bg-sky-50 rounded-lg text-slate-400 hover:text-sky-600"><Pencil className="w-4 h-4" /></button>
+                              <button onClick={() => removeOwnerNote(n.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr className="text-[11px] uppercase tracking-wider text-slate-500">
-                      <th className="px-5 py-3 font-bold">Tanggal</th>
-                      <th className="px-5 py-3 font-bold">Depot</th>
-                      <th className="px-5 py-3 font-bold">Keterangan</th>
-                      <th className="px-5 py-3 font-bold">Jenis</th>
-                      <th className="px-5 py-3 font-bold">Jumlah</th>
-                      <th className="px-5 py-3"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredOwnerNotes.length === 0 && (
-                      <tr><td colSpan={6} className="text-center text-slate-400 py-12">Tidak ada catatan sesuai filter.</td></tr>
-                    )}
-                    {filteredOwnerNotes.slice().sort((a,b)=>getSafeDate(b.tanggal).localeCompare(getSafeDate(a.tanggal))).map((n) => (
-                      <tr key={n.id} className="hover:bg-slate-50">
-                        <td className="px-5 py-4 text-slate-600">{formatTanggal(n.tanggal)}</td>
-                        <td className="px-5 py-4 font-bold text-sky-600">{n.cabang || "Semua Cabang"}</td>
-                        <td className="px-5 py-4 font-medium">{n.keterangan}</td>
-                        <td className="px-5 py-4">
-                          <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${n.jenis === "masuk" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{n.jenis}</span>
-                        </td>
-                        <td className={`px-5 py-4 font-black ${n.jenis === "masuk" ? "text-emerald-600" : "text-red-500"}`}>{formatRupiah(n.jumlah)}</td>
-                        <td className="px-5 py-4 text-right">
-                          <button onClick={() => setOwnerForm(n)} className="p-1.5 hover:bg-sky-50 rounded-lg text-slate-400 hover:text-sky-600"><Pencil className="w-4 h-4" /></button>
-                          <button onClick={() => removeOwnerNote(n.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            )}
+
+            {/* SUB TAB: HUTANG PIUTANG */}
+            {ownerSubTab === "hutangpiutang" && (
+              <div className="animate-in fade-in duration-300">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                    <h3 className="font-black text-lg">Catat Hutang / Piutang</h3>
+                    <div className="flex gap-2">
+                      <button onClick={exportHutangCSV} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold"><FileSpreadsheet className="w-4 h-4" /> Export Excel</button>
+                      <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold"><Printer className="w-4 h-4" /> Cetak</button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
+                    <div><label className={labelClass}>Nama</label><input type="text" placeholder="Nama orang/pihak" value={hutangForm.nama} onChange={(e) => setHutangForm({ ...hutangForm, nama: e.target.value })} className={inputClass} /></div>
+                    <div><label className={labelClass}>Jenis</label>
+                      <select value={hutangForm.jenis} onChange={(e) => setHutangForm({ ...hutangForm, jenis: e.target.value })} className={inputClass}>
+                        <option value="Hutang">Hutang</option>
+                        <option value="Piutang">Piutang</option>
+                      </select>
+                    </div>
+                    <div><label className={labelClass}>Jumlah (Rp)</label><input type="number" value={hutangForm.jumlah} onChange={(e) => setHutangForm({ ...hutangForm, jumlah: e.target.value })} className={inputClass} /></div>
+                    <div><label className={labelClass}>Tanggal</label><input type="date" value={hutangForm.tanggal} onChange={(e) => setHutangForm({ ...hutangForm, tanggal: e.target.value })} className={inputClass} /></div>
+                    <div><label className={labelClass}>Status</label>
+                      <select value={hutangForm.status} onChange={(e) => setHutangForm({ ...hutangForm, status: e.target.value })} className={inputClass}>
+                        <option value="Belum Lunas">Belum Lunas</option>
+                        <option value="Lunas">Lunas</option>
+                      </select>
+                    </div>
+                    <button onClick={addHutang} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl">{hutangForm.id ? "Update" : "Simpan"}</button>
+                  </div>
+                  <div className="mt-4"><label className={labelClass}>Keterangan</label><input type="text" placeholder="Catatan tambahan" value={hutangForm.keterangan} onChange={(e) => setHutangForm({ ...hutangForm, keterangan: e.target.value })} className={inputClass} /></div>
+                  {hutangForm.id && (
+                    <button onClick={() => setHutangForm(emptyHutangForm)} className="mt-3 text-xs font-bold text-slate-400 hover:text-red-500">Batal edit, buat data baru</button>
+                  )}
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="p-5 border-b border-slate-200 bg-slate-50 flex flex-wrap gap-4 items-end justify-between">
+                    <h3 className="font-black text-lg">Daftar Hutang & Piutang</h3>
+                    <div className="flex flex-wrap gap-3">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input type="text" placeholder="Cari nama..." value={hutangSearch} onChange={(e) => setHutangSearch(e.target.value)} className="border-2 border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs font-medium" />
+                      </div>
+                      <select value={hutangFilterStatus} onChange={(e) => setHutangFilterStatus(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium">
+                        <option value="Semua">Semua Status</option>
+                        <option value="Belum Lunas">Belum Lunas</option>
+                        <option value="Lunas">Lunas</option>
+                      </select>
+                      <input type="date" value={hutangFilterDateFrom} onChange={(e) => setHutangFilterDateFrom(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium" title="Dari tanggal" />
+                      <input type="date" value={hutangFilterDateTo} onChange={(e) => setHutangFilterDateTo(e.target.value)} className="border-2 border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium" title="Sampai tanggal" />
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr className="text-[11px] uppercase tracking-wider text-slate-500">
+                          <th className="px-5 py-3 font-bold">Nama</th>
+                          <th className="px-5 py-3 font-bold">Jenis</th>
+                          <th className="px-5 py-3 font-bold">Tanggal</th>
+                          <th className="px-5 py-3 font-bold">Keterangan</th>
+                          <th className="px-5 py-3 font-bold">Jumlah</th>
+                          <th className="px-5 py-3 font-bold">Status</th>
+                          <th className="px-5 py-3"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredHutangPiutang.length === 0 && (
+                          <tr><td colSpan={7} className="text-center text-slate-400 py-12">Tidak ada data.</td></tr>
+                        )}
+                        {filteredHutangPiutang.slice().sort((a,b)=>getSafeDate(b.tanggal).localeCompare(getSafeDate(a.tanggal))).map((h) => (
+                          <tr key={h.id} className="hover:bg-slate-50">
+                            <td className="px-5 py-4 font-bold text-slate-800">{h.nama}</td>
+                            <td className="px-5 py-4">
+                              <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${h.jenis === "Piutang" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{h.jenis}</span>
+                            </td>
+                            <td className="px-5 py-4 text-slate-600">{formatTanggal(h.tanggal)}</td>
+                            <td className="px-5 py-4 text-slate-600">{h.keterangan}</td>
+                            <td className="px-5 py-4 font-black text-slate-800">{formatRupiah(h.jumlah)}</td>
+                            <td className="px-5 py-4">
+                              <button onClick={() => toggleHutangStatus(h)} className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase flex items-center gap-1.5 w-fit ${h.status === "Lunas" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                                <span className={`w-2 h-2 rounded-full ${h.status === "Lunas" ? "bg-emerald-500" : "bg-red-500"}`}></span>
+                                {h.status}
+                              </button>
+                            </td>
+                            <td className="px-5 py-4 text-right">
+                              <button onClick={() => editHutang(h)} className="p-1.5 hover:bg-sky-50 rounded-lg text-slate-400 hover:text-sky-600"><Pencil className="w-4 h-4" /></button>
+                              <button onClick={() => removeHutang(h.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </main>
@@ -1332,7 +1539,7 @@ function UserForm({ data, cabangList, onSave }) {
     <div className="p-6 space-y-4">
       <div><label className={labelClass}>Nama Lengkap</label><input className={inputClass} value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} /></div>
       <div><label className={labelClass}>Username Login</label><input className={inputClass} value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} /></div>
-      <div><label className={labelClass}>{data ? "Password (Kosong jika tidak diganti)" : "Password"}</label><input type="password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" className={inputClass} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
+      <div><label className={labelClass}>{data ? "Password (Kosong jika tidak diganti)" : "Password"}</label><input type="password" placeholder="********" className={inputClass} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
       <div><label className={labelClass}>Level Akses</label><select className={inputClass} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}><option value="pegawai">Pegawai Cabang</option><option value="admin">Super Admin</option></select></div>
       {form.role === "pegawai" && (<div><label className={labelClass}>Penempatan Cabang</label><select className={inputClass} value={form.cabang} onChange={(e) => setForm({ ...form, cabang: e.target.value })}>{cabangList.map((c) => (<option key={c} value={c}>{c}</option>))}</select></div>)}
       <button onClick={() => onSave(form)} className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3.5 rounded-xl mt-6">Simpan Akses</button>
