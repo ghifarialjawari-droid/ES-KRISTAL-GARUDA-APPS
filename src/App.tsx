@@ -716,82 +716,107 @@ export default function App() {
   const handleDownloadStruk = (item) => {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    
-    let height = 360;
+
+    let height = 430;
     if (parseFloat(item.ongkir) > 0) height += 30;
     if (parseFloat(item.diskon) > 0) height += 30;
-    
+
     canvas.width = 400;
     canvas.height = height;
 
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const logo = new Image();
+    logo.crossOrigin = "anonymous";
+    logo.onload = () => {
+      drawStruk();
+    };
+    logo.onerror = () => {
+      drawStruk();
+    };
+    logo.src = "/logo192.png";
 
-    ctx.fillStyle = "#000000";
-    
-    ctx.font = "bold 22px monospace";
-    ctx.textAlign = "center";
-    ctx.fillText("ES KRISTAL GARUDA", 200, 40);
-    
-    ctx.font = "14px monospace";
-    ctx.fillText(`Cabang: ${item.cabang}`, 200, 65);
-    ctx.fillText("----------------------------------", 200, 85);
+    const drawStruk = () => {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.textAlign = "left";
-    ctx.fillText(`Tgl   : ${formatTanggal(item.tanggal)}`, 20, 110);
-    ctx.fillText(`Plgn  : ${item.customer}`, 20, 135);
-    
-    ctx.textAlign = "center";
-    ctx.fillText("----------------------------------", 200, 160);
+      ctx.fillStyle = "#000000";
 
-    ctx.textAlign = "left";
-    ctx.fillText("Item", 20, 185);
-    ctx.textAlign = "right";
-    ctx.fillText("Subtotal", 380, 185);
+      // Logo hitam putih di atas struk
+      if (logo.complete && logo.naturalWidth > 0) {
+        const logoSize = 60;
+        ctx.save();
+        ctx.filter = "grayscale(100%) contrast(1.1)";
+        ctx.drawImage(logo, (canvas.width - logoSize) / 2, 15, logoSize, logoSize);
+        ctx.restore();
+      }
 
-    ctx.textAlign = "left";
-    ctx.fillText(`Es Kristal (${formatQty(item.jumlah)} Bks)`, 20, 215);
-    ctx.textAlign = "right";
-    ctx.fillText(formatRupiah(item.hargaEs), 380, 215);
+      const topOffset = 65;
 
-    let currentY = 245;
-    
-    if (parseFloat(item.ongkir) > 0) {
+      ctx.font = "bold 22px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("ES KRISTAL GARUDA", 200, topOffset + 20);
+
+      ctx.font = "14px monospace";
+      ctx.fillText(`Cabang: ${item.cabang}`, 200, topOffset + 45);
+      ctx.fillText("----------------------------------", 200, topOffset + 65);
+
       ctx.textAlign = "left";
-      ctx.fillText("Ongkos Kirim", 20, currentY);
-      ctx.textAlign = "right";
-      ctx.fillText(formatRupiah(item.ongkir), 380, currentY);
-      currentY += 30;
-    }
+      ctx.fillText(`Tgl   : ${formatTanggal(item.tanggal)}`, 20, topOffset + 90);
+      ctx.fillText(`Plgn  : ${item.customer}`, 20, topOffset + 115);
 
-    if (parseFloat(item.diskon) > 0) {
+      ctx.textAlign = "center";
+      ctx.fillText("----------------------------------", 200, topOffset + 140);
+
       ctx.textAlign = "left";
-      ctx.fillText("Diskon", 20, currentY);
+      ctx.fillText("Item", 20, topOffset + 165);
       ctx.textAlign = "right";
-      ctx.fillText(`-${formatRupiah(item.diskon)}`, 380, currentY);
+      ctx.fillText("Subtotal", 380, topOffset + 165);
+
+      ctx.textAlign = "left";
+      ctx.fillText(`Es Kristal (${formatQty(item.jumlah)} Bks)`, 20, topOffset + 195);
+      ctx.textAlign = "right";
+      ctx.fillText(formatRupiah(item.hargaEs), 380, topOffset + 195);
+
+      let currentY = topOffset + 225;
+
+      if (parseFloat(item.ongkir) > 0) {
+        ctx.textAlign = "left";
+        ctx.fillText("Ongkos Kirim", 20, currentY);
+        ctx.textAlign = "right";
+        ctx.fillText(formatRupiah(item.ongkir), 380, currentY);
+        currentY += 30;
+      }
+
+      if (parseFloat(item.diskon) > 0) {
+        ctx.textAlign = "left";
+        ctx.fillText("Diskon", 20, currentY);
+        ctx.textAlign = "right";
+        ctx.fillText(`-${formatRupiah(item.diskon)}`, 380, currentY);
+        currentY += 30;
+      }
+
+      ctx.textAlign = "center";
+      ctx.fillText("----------------------------------", 200, currentY);
       currentY += 30;
-    }
 
-    ctx.textAlign = "center";
-    ctx.fillText("----------------------------------", 200, currentY);
-    currentY += 30;
+      ctx.textAlign = "left";
+      ctx.font = "bold 18px monospace";
+      ctx.fillText("TOTAL BAYAR", 20, currentY);
+      ctx.textAlign = "right";
+      ctx.fillText(formatRupiah(item.total), 380, currentY);
 
-    ctx.textAlign = "left";
-    ctx.font = "bold 18px monospace";
-    ctx.fillText("TOTAL BAYAR", 20, currentY);
-    ctx.textAlign = "right";
-    ctx.fillText(formatRupiah(item.total), 380, currentY);
+      currentY += 40;
+      ctx.textAlign = "center";
+      ctx.font = "italic 14px monospace";
+      ctx.fillText("Hatur Nuhun,", 200, currentY);
+      currentY += 20;
+      ctx.fillText("Sing Laris Sareng Baroqah Usahana \u{1F64F}", 200, currentY);
 
-    currentY += 40;
-    ctx.textAlign = "center";
-    ctx.font = "italic 14px monospace";
-    ctx.fillText("Terima kasih atas pembelian Anda!", 200, currentY);
-
-    const link = document.createElement("a");
-    link.download = `Struk_${item.customer.replace(/\s+/g, '_')}_${item.tanggal}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-    showToast("Struk berhasil diunduh!", "success");
+      const link = document.createElement("a");
+      link.download = `Struk_${item.customer.replace(/\s+/g, '_')}_${item.tanggal}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+      showToast("Struk berhasil diunduh!", "success");
+    };
   };
 
   if (!currentUser) return <LoginPage onLogin={setCurrentUser} installPrompt={deferredPrompt ? installPWA : null} isOnline={isOnline} showToast={showToast} />;
