@@ -604,8 +604,22 @@ export default function App() {
       const res = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "save", table, data: item }) });
       const result = await res.json();
       if (!result.success) throw new Error(result.error || "Gagal server");
-      showToast((labelSukses || "Data") + " tersimpan & tersinkron ke Google Spreadsheet", "success");
-      await syncAfterWrite(table, item);
+
+      if (Array.isArray(result.updatedList)) {
+        // Backend (versi baru) langsung mengirim balik data terbaru tabel ini
+        // dalam response yang sama -> paling akurat, tidak perlu request kedua,
+        // dan tidak bergantung pada pengecekan role di endpoint getData.
+        TABLE_SETTER[table](() => {
+          localStorage.setItem(TABLE_LOCAL_KEY[table], JSON.stringify(result.updatedList));
+          return result.updatedList;
+        });
+        showToast((labelSukses || "Data") + " tersimpan & tersinkron ke Google Spreadsheet", "success");
+        setSyncStatus({ state: "idle", msg: "" });
+      } else {
+        // Fallback untuk backend versi lama yang belum mengirim updatedList.
+        showToast((labelSukses || "Data") + " tersimpan & tersinkron ke Google Spreadsheet", "success");
+        await syncAfterWrite(table, item);
+      }
     } catch (e) {
       showToast("Tersimpan lokal, GAGAL sinkron ke Google Spreadsheet: " + e.message, "error");
       setSyncStatus({ state: "error", msg: e.message });
@@ -623,8 +637,18 @@ export default function App() {
       const res = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "delete", table, data: { id } }) });
       const result = await res.json();
       if (!result.success) throw new Error(result.error || "Gagal server");
-      showToast((labelSukses || "Data") + " dihapus & tersinkron ke Google Spreadsheet", "success");
-      await syncAfterDelete(table, id);
+
+      if (Array.isArray(result.updatedList)) {
+        TABLE_SETTER[table](() => {
+          localStorage.setItem(TABLE_LOCAL_KEY[table], JSON.stringify(result.updatedList));
+          return result.updatedList;
+        });
+        showToast((labelSukses || "Data") + " dihapus & tersinkron ke Google Spreadsheet", "success");
+        setSyncStatus({ state: "idle", msg: "" });
+      } else {
+        showToast((labelSukses || "Data") + " dihapus & tersinkron ke Google Spreadsheet", "success");
+        await syncAfterDelete(table, id);
+      }
     } catch (e) {
       showToast("Terhapus lokal, GAGAL sinkron hapus ke Google Spreadsheet: " + e.message, "error");
       setSyncStatus({ state: "error", msg: e.message });
