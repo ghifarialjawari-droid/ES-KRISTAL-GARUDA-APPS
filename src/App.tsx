@@ -105,8 +105,13 @@ function computeStockData(stockRecords, sales) {
 }
 
 const CustomDialog = ({ dialog, closeDialog }) => {
-  if (!dialog.show) return null;
   const [inputValue, setInputValue] = useState("");
+
+  useEffect(() => {
+    if (dialog.show && dialog.type === "prompt") setInputValue("");
+  }, [dialog.show, dialog.type]);
+
+  if (!dialog.show) return null;
 
   const handleConfirm = () => {
     if (dialog.type === "prompt") dialog.onConfirm(inputValue);
@@ -197,6 +202,7 @@ function LoginPage({ onLogin, installPrompt, isOnline, showToast }) {
 export default function App() {
   const isOnline = Boolean(GAS_URL);
   const [appLoading, setAppLoading] = useState(false);
+  const [syncStatus, setSyncStatus] = useState({ state: "idle", msg: "" }); // idle | syncing | error
 
   const [dialog, setDialog] = useState({ show: false, type: "", msg: "", title: "", onConfirm: null, isDestructive: false });
   const closeDialog = () => setDialog({ show: false, type: "", msg: "", title: "", onConfirm: null, isDestructive: false });
@@ -271,12 +277,19 @@ export default function App() {
   const [ownerFilterJenis, setOwnerFilterJenis] = useState("semua");
 
   const filteredOwnerNotes = useMemo(() => {
-    return ownerNotes.filter((n) => {
-      const matchDate = !ownerFilterDate || getSafeDate(n.tanggal) === ownerFilterDate;
-      const matchCabang = ownerFilterCabang === "Semua Cabang" || n.cabang === ownerFilterCabang;
-      const matchJenis = ownerFilterJenis === "semua" || n.jenis === ownerFilterJenis;
-      return matchDate && matchCabang && matchJenis;
-    });
+    return ownerNotes
+      .filter((n) => {
+        const matchDate = !ownerFilterDate || getSafeDate(n.tanggal) === ownerFilterDate;
+        const matchCabang = ownerFilterCabang === "Semua Cabang" || n.cabang === ownerFilterCabang;
+        const matchJenis = ownerFilterJenis === "semua" || n.jenis === ownerFilterJenis;
+        return matchDate && matchCabang && matchJenis;
+      })
+      .slice()
+      .sort((a, b) => {
+        const byDate = getSafeDate(b.tanggal).localeCompare(getSafeDate(a.tanggal));
+        if (byDate !== 0) return byDate;
+        return String(b.id).localeCompare(String(a.id));
+      });
   }, [ownerNotes, ownerFilterDate, ownerFilterCabang, ownerFilterJenis]);
 
   const filteredOwnerMasuk = filteredOwnerNotes.filter(n => n.jenis === "masuk").reduce((a,n)=>a+parseFloat(n.jumlah||0),0);
@@ -377,14 +390,21 @@ export default function App() {
   };
 
   const filteredHutangPiutang = useMemo(() => {
-    return hutangPiutangList.filter((h) => {
-      const matchSearch = !hutangSearch || h.nama.toLowerCase().includes(hutangSearch.toLowerCase()) || (h.keterangan || "").toLowerCase().includes(hutangSearch.toLowerCase());
-      const matchStatus = hutangFilterStatus === "Semua" || h.status === hutangFilterStatus;
-      const d = getSafeDate(h.tanggal);
-      const matchFrom = !hutangFilterDateFrom || d >= hutangFilterDateFrom;
-      const matchTo = !hutangFilterDateTo || d <= hutangFilterDateTo;
-      return matchSearch && matchStatus && matchFrom && matchTo;
-    });
+    return hutangPiutangList
+      .filter((h) => {
+        const matchSearch = !hutangSearch || h.nama.toLowerCase().includes(hutangSearch.toLowerCase()) || (h.keterangan || "").toLowerCase().includes(hutangSearch.toLowerCase());
+        const matchStatus = hutangFilterStatus === "Semua" || h.status === hutangFilterStatus;
+        const d = getSafeDate(h.tanggal);
+        const matchFrom = !hutangFilterDateFrom || d >= hutangFilterDateFrom;
+        const matchTo = !hutangFilterDateTo || d <= hutangFilterDateTo;
+        return matchSearch && matchStatus && matchFrom && matchTo;
+      })
+      .slice()
+      .sort((a, b) => {
+        const byDate = getSafeDate(b.tanggal).localeCompare(getSafeDate(a.tanggal));
+        if (byDate !== 0) return byDate;
+        return String(b.id).localeCompare(String(a.id));
+      });
   }, [hutangPiutangList, hutangSearch, hutangFilterStatus, hutangFilterDateFrom, hutangFilterDateTo]);
 
   const exportHutangCSV = () => {
@@ -399,6 +419,8 @@ export default function App() {
   // ==========================================
   // SALDO REKENING BANK - REAL-TIME OTOMATIS
   // Saldo = (Penjualan + Kas Owner Masuk) - (Pengeluaran + Kas Owner Keluar) - Hutang/Piutang Belum Lunas
+  // Dihitung ulang otomatis setiap kali sales/expenses/ownerNotes/hutangPiutangList berubah,
+  // sehingga selalu real-time tanpa perlu refresh halaman.
   // ==========================================
   const totalPemasukanSemua = useMemo(() => {
     const dariPenjualan = sales.reduce((a, s) => a + (s.total || 0), 0);
@@ -429,74 +451,171 @@ export default function App() {
     else { showAlert("Gunakan menu 'Add to Home Screen' pada browser HP Anda untuk menginstal.", "Cara Install"); }
   };
 
+  // Nama tabel -> nama field yang dipakai backend GAS pada response getData.
+  // PENTING: jika Apps Script Anda memakai nama field lain, sesuaikan di sini.
+  const TABLE_RESPONSE_KEY = { Users: "users", Sales: "sales", Expenses: "expenses", Stocks: "stocks", OwnerNotes: "ownerNotes", HutangPiutang: "hutangPiutang" };
+  const TABLE_LOCAL_KEY = { Users: "es_kristal_users", Sales: "es_kristal_sales", Expenses: "es_kristal_expenses", Stocks: "es_kristal_stocks", OwnerNotes: "es_kristal_owner_notes", HutangPiutang: "es_kristal_hutang_piutang" };
+  const TABLE_SETTER = { Users: setUsers, Sales: setSales, Expenses: setExpenses, Stocks: setStockRecords, OwnerNotes: setOwnerNotes, HutangPiutang: setHutangPiutangList };
+
+  // Mengambil data mentah dari Google Spreadsheet TANPA langsung mengubah state.
+  // Dipisah dari loadData() supaya bisa dipakai ulang untuk proses sinkronisasi (syncAfterWrite/syncAfterDelete).
+  const fetchServerData = async () => {
+    const res = await fetch(`${GAS_URL}?t=${new Date().getTime()}`, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "getData", data: { role: currentUser?.role } }) });
+    const resData = await res.json();
+    if (!resData.success) throw new Error(resData.error || "Gagal mengambil data dari Google Spreadsheet.");
+    return resData;
+  };
+
+  // Menerapkan hasil fetchServerData ke seluruh state aplikasi + localStorage (sumber data tunggal).
+  const applyServerData = (resData) => {
+    setUsers(resData.users || []);
+    setSales(resData.sales || []);
+    setExpenses(resData.expenses || []);
+    setStockRecords(resData.stocks || []);
+    setOwnerNotes(resData.ownerNotes || []);
+    setHutangPiutangList(resData.hutangPiutang || []);
+    localStorage.setItem("es_kristal_users", JSON.stringify(resData.users || []));
+    localStorage.setItem("es_kristal_sales", JSON.stringify(resData.sales || []));
+    localStorage.setItem("es_kristal_expenses", JSON.stringify(resData.expenses || []));
+    localStorage.setItem("es_kristal_stocks", JSON.stringify(resData.stocks || []));
+    localStorage.setItem("es_kristal_owner_notes", JSON.stringify(resData.ownerNotes || []));
+    localStorage.setItem("es_kristal_hutang_piutang", JSON.stringify(resData.hutangPiutang || []));
+  };
+
+  const loadLocalFallback = () => {
+    setUsers(JSON.parse(localStorage.getItem("es_kristal_users") || "[]"));
+    setSales(JSON.parse(localStorage.getItem("es_kristal_sales") || "[]"));
+    setExpenses(JSON.parse(localStorage.getItem("es_kristal_expenses") || "[]"));
+    setStockRecords(JSON.parse(localStorage.getItem("es_kristal_stocks") || "[]"));
+    if (currentUser?.role === "admin") {
+      setOwnerNotes(JSON.parse(localStorage.getItem("es_kristal_owner_notes") || "[]"));
+      setHutangPiutangList(JSON.parse(localStorage.getItem("es_kristal_hutang_piutang") || "[]"));
+    }
+  };
+
   const loadData = async () => {
     setAppLoading(true);
     try {
       if (GAS_URL) {
-        const res = await fetch(`${GAS_URL}?t=${new Date().getTime()}`, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "getData", data: { role: currentUser?.role } }) });
-        const resData = await res.json();
-        if (resData.success) {
-          setUsers(resData.users || []); setSales(resData.sales || []); setExpenses(resData.expenses || []); setStockRecords(resData.stocks || []);
-          setOwnerNotes(resData.ownerNotes || []); setHutangPiutangList(resData.hutangPiutang || []);
-          localStorage.setItem("es_kristal_users", JSON.stringify(resData.users || []));
-          localStorage.setItem("es_kristal_sales", JSON.stringify(resData.sales || []));
-          localStorage.setItem("es_kristal_expenses", JSON.stringify(resData.expenses || []));
-          localStorage.setItem("es_kristal_stocks", JSON.stringify(resData.stocks || []));
-          if (resData.ownerNotes) localStorage.setItem("es_kristal_owner_notes", JSON.stringify(resData.ownerNotes));
-          if (resData.hutangPiutang) localStorage.setItem("es_kristal_hutang_piutang", JSON.stringify(resData.hutangPiutang));
-        } else {
-          showAlert(resData.error || "Gagal mengambil data dari Google Spreadsheet.", "Sinkronisasi Gagal", true);
-        }
+        const resData = await fetchServerData();
+        applyServerData(resData);
+        setSyncStatus({ state: "idle", msg: "" });
       } else {
-        setUsers(JSON.parse(localStorage.getItem("es_kristal_users") || "[]"));
-        setSales(JSON.parse(localStorage.getItem("es_kristal_sales") || "[]"));
-        setExpenses(JSON.parse(localStorage.getItem("es_kristal_expenses") || "[]"));
-        setStockRecords(JSON.parse(localStorage.getItem("es_kristal_stocks") || "[]"));
-        if (currentUser?.role === "admin") {
-          setOwnerNotes(JSON.parse(localStorage.getItem("es_kristal_owner_notes") || "[]"));
-          setHutangPiutangList(JSON.parse(localStorage.getItem("es_kristal_hutang_piutang") || "[]"));
-        }
+        loadLocalFallback();
       }
     } catch (e) {
       showAlert("Gagal terhubung ke Google Spreadsheet. Memuat data cadangan offline. Periksa koneksi internet atau URL Apps Script.", "Koneksi Bermasalah", true);
-      setUsers(JSON.parse(localStorage.getItem("es_kristal_users") || "[]")); setSales(JSON.parse(localStorage.getItem("es_kristal_sales") || "[]"));
-      setExpenses(JSON.parse(localStorage.getItem("es_kristal_expenses") || "[]")); setStockRecords(JSON.parse(localStorage.getItem("es_kristal_stocks") || "[]"));
-      if (currentUser?.role === "admin") {
-        setOwnerNotes(JSON.parse(localStorage.getItem("es_kristal_owner_notes") || "[]"));
-        setHutangPiutangList(JSON.parse(localStorage.getItem("es_kristal_hutang_piutang") || "[]"));
-      }
+      setSyncStatus({ state: "error", msg: e.message });
+      loadLocalFallback();
     } finally { setAppLoading(false); }
   };
 
   useEffect(() => { if (currentUser) loadData(); }, [currentUser]);
 
+  // Setelah simpan berhasil ke Spreadsheet, ambil ulang data server dan PASTIKAN item yang baru
+  // saja disimpan benar-benar ada di hasil fetch. Jika sheet belum "kelihatan" (delay propagasi,
+  // nama kolom tidak cocok, dsb), coba ulang beberapa kali sebelum menyerah supaya data yang sudah
+  // ditampilkan optimis di layar tidak tiba-tiba hilang.
+  const syncAfterWrite = async (table, item, attempt = 1) => {
+    const MAX_ATTEMPT = 4;
+    setSyncStatus({ state: "syncing", msg: `Menyinkronkan ${table}...` });
+    try {
+      const resData = await fetchServerData();
+      const key = TABLE_RESPONSE_KEY[table];
+      const serverList = resData[key] || [];
+      const foundOnServer = serverList.some((x) => String(x.id) === String(item.id));
+
+      if (foundOnServer) {
+        applyServerData(resData);
+        setSyncStatus({ state: "idle", msg: "" });
+        return;
+      }
+
+      if (attempt < MAX_ATTEMPT) {
+        await new Promise((r) => setTimeout(r, 700 * attempt));
+        return syncAfterWrite(table, item, attempt + 1);
+      }
+
+      // Sudah dicoba beberapa kali tapi item belum muncul di respons server.
+      // Tetap perbarui tabel lain dari server, tapi pertahankan item yang baru disimpan
+      // secara lokal supaya tidak hilang dari layar, dan beri tahu pengguna.
+      applyServerData(resData);
+      TABLE_SETTER[table]((prev) => {
+        const exists = prev.find((x) => String(x.id) === String(item.id));
+        const merged = exists ? prev.map((x) => (String(x.id) === String(item.id) ? item : x)) : [item, ...prev];
+        localStorage.setItem(TABLE_LOCAL_KEY[table], JSON.stringify(merged));
+        return merged;
+      });
+      setSyncStatus({ state: "error", msg: `Data ${table} tersimpan, tetapi belum muncul dari Spreadsheet.` });
+      showToast("Data tersimpan, tapi Spreadsheet belum sinkron sepenuhnya. Menampilkan versi terbaru sementara di layar Anda.", "error");
+    } catch (e) {
+      setSyncStatus({ state: "error", msg: e.message });
+      showToast("Gagal memuat ulang data terbaru dari Spreadsheet: " + e.message, "error");
+    }
+  };
+
+  // Sama seperti syncAfterWrite, tapi untuk memastikan item yang dihapus benar-benar hilang dari server.
+  const syncAfterDelete = async (table, id, attempt = 1) => {
+    const MAX_ATTEMPT = 4;
+    setSyncStatus({ state: "syncing", msg: `Menyinkronkan ${table}...` });
+    try {
+      const resData = await fetchServerData();
+      const key = TABLE_RESPONSE_KEY[table];
+      const serverList = resData[key] || [];
+      const stillExists = serverList.some((x) => String(x.id) === String(id));
+
+      if (!stillExists) {
+        applyServerData(resData);
+        setSyncStatus({ state: "idle", msg: "" });
+        return;
+      }
+
+      if (attempt < MAX_ATTEMPT) {
+        await new Promise((r) => setTimeout(r, 700 * attempt));
+        return syncAfterDelete(table, id, attempt + 1);
+      }
+
+      applyServerData(resData);
+      TABLE_SETTER[table]((prev) => {
+        const filtered = prev.filter((x) => String(x.id) !== String(id));
+        localStorage.setItem(TABLE_LOCAL_KEY[table], JSON.stringify(filtered));
+        return filtered;
+      });
+      setSyncStatus({ state: "error", msg: `Data ${table} terhapus lokal, Spreadsheet belum sinkron.` });
+      showToast("Data terhapus, tapi Spreadsheet belum sinkron sepenuhnya. Coba tekan Refresh Data sesaat lagi.", "error");
+    } catch (e) {
+      setSyncStatus({ state: "error", msg: e.message });
+      showToast("Gagal memuat ulang data setelah hapus: " + e.message, "error");
+    }
+  };
+
   const dbSave = async (table, item, labelSukses) => {
-    const tableMap = { Users: setUsers, Sales: setSales, Expenses: setExpenses, Stocks: setStockRecords, OwnerNotes: setOwnerNotes, HutangPiutang: setHutangPiutangList };
-    const localKey = { Users: "es_kristal_users", Sales: "es_kristal_sales", Expenses: "es_kristal_expenses", Stocks: "es_kristal_stocks", OwnerNotes: "es_kristal_owner_notes", HutangPiutang: "es_kristal_hutang_piutang" };
-    tableMap[table]((prev) => {
-      const exists = prev.find((x) => x.id === item.id);
-      const newData = exists ? prev.map((x) => (x.id === item.id ? item : x)) : [...prev, item];
-      localStorage.setItem(localKey[table], JSON.stringify(newData));
+    // Tampilkan langsung di UI (optimistic update) agar terasa instan bagi pengguna.
+    TABLE_SETTER[table]((prev) => {
+      const exists = prev.find((x) => String(x.id) === String(item.id));
+      const newData = exists ? prev.map((x) => (String(x.id) === String(item.id) ? item : x)) : [item, ...prev];
+      localStorage.setItem(TABLE_LOCAL_KEY[table], JSON.stringify(newData));
       return newData;
     });
+
     if (!GAS_URL) { showToast((labelSukses || "Data") + " tersimpan (mode lokal, tidak tersambung Google Sheet)", "info"); return; }
+
     try {
       const res = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "save", table, data: item }) });
       const result = await res.json();
       if (!result.success) throw new Error(result.error || "Gagal server");
       showToast((labelSukses || "Data") + " tersimpan & tersinkron ke Google Spreadsheet", "success");
-      loadData();
+      await syncAfterWrite(table, item);
     } catch (e) {
       showToast("Tersimpan lokal, GAGAL sinkron ke Google Spreadsheet: " + e.message, "error");
+      setSyncStatus({ state: "error", msg: e.message });
     }
   };
 
   const dbDelete = async (table, id, labelSukses) => {
-    const tableMap = { Users: setUsers, Sales: setSales, Expenses: setExpenses, Stocks: setStockRecords, OwnerNotes: setOwnerNotes, HutangPiutang: setHutangPiutangList };
-    const localKey = { Users: "es_kristal_users", Sales: "es_kristal_sales", Expenses: "es_kristal_expenses", Stocks: "es_kristal_stocks", OwnerNotes: "es_kristal_owner_notes", HutangPiutang: "es_kristal_hutang_piutang" };
-    tableMap[table]((prev) => {
-      const newData = prev.filter((x) => x.id !== id);
-      localStorage.setItem(localKey[table], JSON.stringify(newData));
+    TABLE_SETTER[table]((prev) => {
+      const newData = prev.filter((x) => String(x.id) !== String(id));
+      localStorage.setItem(TABLE_LOCAL_KEY[table], JSON.stringify(newData));
       return newData;
     });
     if (!GAS_URL) { showToast((labelSukses || "Data") + " dihapus (mode lokal)", "info"); return; }
@@ -505,9 +624,10 @@ export default function App() {
       const result = await res.json();
       if (!result.success) throw new Error(result.error || "Gagal server");
       showToast((labelSukses || "Data") + " dihapus & tersinkron ke Google Spreadsheet", "success");
-      loadData();
+      await syncAfterDelete(table, id);
     } catch (e) {
       showToast("Terhapus lokal, GAGAL sinkron hapus ke Google Spreadsheet: " + e.message, "error");
+      setSyncStatus({ state: "error", msg: e.message });
     }
   };
 
@@ -846,6 +966,8 @@ export default function App() {
         </nav>
         <div className="flex items-center gap-2.5 flex-wrap">
           {appLoading && <RefreshCw className="w-4 h-4 text-sky-200 animate-spin" />}
+          {syncStatus.state === "syncing" && !appLoading && (<span className="flex items-center gap-1.5 text-[11px] font-bold text-sky-100 bg-white/10 px-2.5 py-1 rounded-full"><RefreshCw className="w-3 h-3 animate-spin" /> Sinkron...</span>)}
+          {syncStatus.state === "error" && (<span title={syncStatus.msg} className="flex items-center gap-1.5 text-[11px] font-bold text-amber-100 bg-amber-500/30 px-2.5 py-1 rounded-full"><AlertTriangle className="w-3 h-3" /> Sinkron Tertunda</span>)}
           {isAdmin && (<button onClick={() => setShowSettings(true)} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg text-sm font-bold"><Settings className="w-4 h-4" /><span className="hidden sm:inline">Seting</span></button>)}
           {isAdmin && (<button onClick={() => setShowExportModal(true)} className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg text-sm font-bold"><Download className="w-4 h-4" /><span className="hidden sm:inline">CSV</span></button>)}
           <div className="flex items-center gap-2 bg-slate-900/40 rounded-lg px-3 py-2 text-sm"><span className="font-bold">{currentUser.nama}</span><span className="text-[10px] bg-sky-400 text-sky-950 font-bold px-2 py-0.5 rounded-md">{myCabang}</span></div>
@@ -901,7 +1023,7 @@ export default function App() {
                     <p className="text-2xl font-black text-white">{formatRupiah(saldoRekeningOtomatis)}</p>
                   </div>
                 </div>
-                <span className="text-[11px] text-slate-400">Otomatis dari seluruh Pemasukan âˆ’ Pengeluaran âˆ’ Hutang/Piutang Belum Lunas</span>
+                <span className="text-[11px] text-slate-400">Otomatis dari seluruh Pemasukan - Pengeluaran - Hutang/Piutang Belum Lunas</span>
               </div>
             )}
 
@@ -1193,9 +1315,14 @@ export default function App() {
         {/* TAB KAS OWNER - HANYA ADMIN */}
         {tab === "owner" && isAdmin && (
           <div className="animate-in fade-in duration-500">
-            <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 mb-6 flex items-center gap-3">
-              <ShieldCheck className="w-6 h-6 text-amber-600 flex-shrink-0" />
-              <p className="text-sm text-amber-800 font-semibold">Halaman ini rahasia - hanya Super Admin yang bisa melihat. Data tidak pernah dikirim ke akun Pegawai.</p>
+            <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="w-6 h-6 text-amber-600 flex-shrink-0" />
+                <p className="text-sm text-amber-800 font-semibold">Halaman ini rahasia - hanya Super Admin yang bisa melihat. Data tidak pernah dikirim ke akun Pegawai.</p>
+              </div>
+              <button onClick={() => loadData()} className="bg-amber-100 text-amber-800 hover:bg-amber-200 px-4 py-2 rounded-xl font-bold flex items-center gap-2 text-xs">
+                <RefreshCw className={`w-3.5 h-3.5 ${appLoading ? "animate-spin" : ""}`} /> Refresh Data
+              </button>
             </div>
 
             <div className="flex gap-2 mb-6 flex-wrap">
@@ -1376,7 +1503,7 @@ export default function App() {
                         {filteredOwnerNotes.length === 0 && (
                           <tr><td colSpan={7} className="text-center text-slate-400 py-12">Tidak ada catatan sesuai filter.</td></tr>
                         )}
-                        {filteredOwnerNotes.slice().sort((a,b)=>getSafeDate(b.tanggal).localeCompare(getSafeDate(a.tanggal))).map((n) => (
+                        {filteredOwnerNotes.map((n) => (
                           <tr key={n.id} className="hover:bg-slate-50">
                             <td className="px-5 py-4 text-slate-600">{formatTanggal(n.tanggal)}</td>
                             <td className="px-5 py-4 font-bold text-sky-600">{n.cabang || "Semua Cabang"}</td>
@@ -1468,7 +1595,7 @@ export default function App() {
                         {filteredHutangPiutang.length === 0 && (
                           <tr><td colSpan={7} className="text-center text-slate-400 py-12">Tidak ada data.</td></tr>
                         )}
-                        {filteredHutangPiutang.slice().sort((a,b)=>getSafeDate(b.tanggal).localeCompare(getSafeDate(a.tanggal))).map((h) => (
+                        {filteredHutangPiutang.map((h) => (
                           <tr key={h.id} className="hover:bg-slate-50">
                             <td className="px-5 py-4 font-bold text-slate-800">{h.nama}</td>
                             <td className="px-5 py-4">
