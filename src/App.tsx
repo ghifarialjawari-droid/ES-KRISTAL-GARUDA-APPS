@@ -511,7 +511,7 @@ export default function App() {
     }
   };
 
-  const handleCabangSelect = (val, form, setForm) => {
+  const handleCabangSelect = (val, form, setForm, syncFilter = false) => {
     if (val === "__new__") {
       setDialog({ show: true, type: "prompt", msg: "Masukkan nama cabang baru:", title: "Cabang Baru",
         onConfirm: (name) => {
@@ -519,11 +519,15 @@ export default function App() {
             const trimmed = name.trim();
             setCabangList((prev) => prev.includes(trimmed) ? prev : [...prev, trimmed]);
             setForm({ ...form, cabang: trimmed });
+            if (syncFilter) setFilterCabang(trimmed);
           }
           closeDialog();
         }
       });
-    } else { setForm({ ...form, cabang: val }); }
+    } else {
+      setForm({ ...form, cabang: val });
+      if (syncFilter) setFilterCabang(val);
+    }
   };
 
   const handleKategoriSelect = (val, form, setForm) => {
@@ -860,10 +864,10 @@ export default function App() {
         {tab === "kasir" && (
           <div className="animate-in fade-in duration-500">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5 items-end">
-              <div><label className={labelClass}>Tanggal</label><input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Tanggal</label><input type="date" value={filterDate} onChange={(e) => { const v = e.target.value; setFilterDate(v); setSaleForm((prev) => ({ ...prev, tanggal: v })); setExpenseForm((prev) => ({ ...prev, tanggal: v })); }} className={inputClass} /></div>
               <div><label className={labelClass}>Cabang</label>
                 {isAdmin ? (
-                  <select value={filterCabang} onChange={(e) => setFilterCabang(e.target.value)} className={`${inputClass} min-w-[150px]`}><option>Semua Cabang</option>{cabangList.map((c) => (<option key={c}>{c}</option>))}</select>
+                  <select value={filterCabang} onChange={(e) => { const v = e.target.value; setFilterCabang(v); if (v !== "Semua Cabang") { setSaleForm((prev) => ({ ...prev, cabang: v })); setExpenseForm((prev) => ({ ...prev, cabang: v })); } }} className={`${inputClass} min-w-[150px]`}><option>Semua Cabang</option>{cabangList.map((c) => (<option key={c}>{c}</option>))}</select>
                 ) : (<div className={`${inputClass} bg-slate-100 text-slate-500`}>{myCabang}</div>)}
               </div>
               <button onClick={() => loadData()} className="ml-auto bg-sky-100 text-sky-700 hover:bg-sky-200 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 text-sm">
@@ -921,10 +925,10 @@ export default function App() {
                         </div>
                       )}
                       <div className="grid grid-cols-2 gap-4">
-                        <div><label className={labelClass}>Tanggal</label><input type="date" value={saleForm.tanggal} onChange={(e) => setSaleForm({ ...saleForm, tanggal: e.target.value })} className={inputClass} /></div>
+                        <div><label className={labelClass}>Tanggal</label><input type="date" value={saleForm.tanggal} onChange={(e) => { const v = e.target.value; setSaleForm({ ...saleForm, tanggal: v }); setFilterDate(v); setExpenseForm((prev) => ({ ...prev, tanggal: v })); }} className={inputClass} /></div>
                         <div><label className={labelClass}>Cabang</label>
                           {isAdmin ? (
-                            <select value={saleForm.cabang} onChange={(e) => handleCabangSelect(e.target.value, saleForm, setSaleForm)} className={inputClass}>
+                            <select value={saleForm.cabang} onChange={(e) => handleCabangSelect(e.target.value, saleForm, setSaleForm, true)} className={inputClass}>
                               <option value="">Pilih...</option>{cabangList.map((c) => (<option key={c} value={c}>{c}</option>))}<option value="__new__">+ Cabang Baru</option>
                             </select>
                           ) : (<input type="text" value={myCabang} disabled className={`${inputClass} bg-slate-100 text-slate-400`} />)}
@@ -958,10 +962,10 @@ export default function App() {
                         </div>
                       )}
                       <div className="grid grid-cols-2 gap-4">
-                        <div><label className={labelClass}>Tanggal</label><input type="date" value={expenseForm.tanggal} onChange={(e) => setExpenseForm({ ...expenseForm, tanggal: e.target.value })} className={inputClass} /></div>
+                        <div><label className={labelClass}>Tanggal</label><input type="date" value={expenseForm.tanggal} onChange={(e) => { const v = e.target.value; setExpenseForm({ ...expenseForm, tanggal: v }); setFilterDate(v); setSaleForm((prev) => ({ ...prev, tanggal: v })); }} className={inputClass} /></div>
                         <div><label className={labelClass}>Cabang</label>
                           {isAdmin ? (
-                            <select value={expenseForm.cabang} onChange={(e) => handleCabangSelect(e.target.value, expenseForm, setExpenseForm)} className={inputClass}>
+                            <select value={expenseForm.cabang} onChange={(e) => handleCabangSelect(e.target.value, expenseForm, setExpenseForm, true)} className={inputClass}>
                               <option value="">Pilih...</option>{cabangList.map((c) => (<option key={c} value={c}>{c}</option>))}<option value="__new__">+ Cabang Baru</option>
                             </select>
                           ) : (<input value={myCabang} disabled className={`${inputClass} bg-slate-100`} />)}
