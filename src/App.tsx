@@ -9,7 +9,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxhwZL3P4KWLp8r_LoUt6Oipb7TExmRQVM7PEUbgqyGqMp3hT4BnpRGOcGGDM5oxFdW/exec"; 
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxMiMaPV76CrWqiAmRPnSHp9IrxAJHFPuMhUyfmxZIbHa33idwjyV9HdSCZrpQHIgdc/exec"; 
 
 const apiKey = ""; 
 
