@@ -105,8 +105,13 @@ function computeStockData(stockRecords, sales) {
 }
 
 const CustomDialog = ({ dialog, closeDialog }) => {
-  if (!dialog.show) return null;
   const [inputValue, setInputValue] = useState("");
+
+  useEffect(() => {
+    if (dialog.show && dialog.type === "prompt") setInputValue("");
+  }, [dialog.show, dialog.type]);
+
+  if (!dialog.show) return null;
 
   const handleConfirm = () => {
     if (dialog.type === "prompt") dialog.onConfirm(inputValue);
@@ -816,7 +821,7 @@ export default function App() {
       ctx.fillText("Sing Laris Sareng Baroqah Usahana \u{1F64F}", 200, currentY);
 
       const link = document.createElement("a");
-      link.download = `Struk_${item.customer.replace(/\s+/g, '_')}_${item.tanggal}.png`;
+      link.download = `Struk_${(item.customer || "Pelanggan").replace(/\s+/g, '_')}_${item.tanggal}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
       showToast("Struk berhasil diunduh!", "success");
@@ -852,7 +857,7 @@ export default function App() {
           {appLoading && <RefreshCw className="w-4 h-4 text-sky-200 animate-spin" />}
           {isAdmin && (<button onClick={() => setShowSettings(true)} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg text-sm font-bold"><Settings className="w-4 h-4" /><span className="hidden sm:inline">Seting</span></button>)}
           {isAdmin && (<button onClick={() => setShowExportModal(true)} className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg text-sm font-bold"><Download className="w-4 h-4" /><span className="hidden sm:inline">CSV</span></button>)}
-          <div className="flex items-center gap-2 bg-slate-900/40 rounded-lg px-3 py-2 text-sm"><span className="font-bold">{currentUser.nama}</span><span className="text-[10px] bg-sky-400 text-sky-950 font-bold px-2 py-0.5 rounded-md">{myCabang}</span></div>
+          <div className="flex items-center gap-2 bg-slate-900/40 rounded-lg px-3 py-2 text-sm"><span className="font-bold">{currentUser.nama}</span><span className="text-[10px] bg-sky-400 text-sky-950 font-bold px-2 py-0.5 rounded-md">{myCabang || "Admin"}</span></div>
           <button onClick={() => setDialog({ show: true, type: "confirm", msg: "Keluar aplikasi?", onConfirm: () => { setCurrentUser(null); closeDialog(); } })} className="bg-red-500 hover:bg-red-600 p-2 rounded-lg"><LogOut className="w-5 h-5" /></button>
         </div>
       </header>
@@ -905,7 +910,7 @@ export default function App() {
                     <p className="text-2xl font-black text-white">{formatRupiah(saldoRekeningOtomatis)}</p>
                   </div>
                 </div>
-                <span className="text-[11px] text-slate-400">Otomatis dari seluruh Pemasukan Ã¢Ë†â€™ Pengeluaran Ã¢Ë†â€™ Hutang/Piutang Belum Lunas</span>
+                <span className="text-[11px] text-slate-400">Otomatis dari seluruh Pemasukan - Pengeluaran - Hutang/Piutang Belum Lunas</span>
               </div>
             )}
 
