@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import {
   Snowflake, Settings, Download, X, Trash2, PlusCircle, MinusCircle,
   ArrowDownCircle, ArrowUpCircle, Wallet, PackageSearch, Printer,
-  LogIn, LogOut, Users, ShieldCheck, Eye, EyeOff, Pencil, Smartphone, Database, WifiOff, RefreshCw, Info, AlertTriangle, Search, FileSpreadsheet
+  LogIn, LogOut, Users, ShieldCheck, Eye, EyeOff, Pencil, Smartphone, Database, WifiOff, RefreshCw, Info, AlertTriangle, Search, FileSpreadsheet, Camera
 } from "lucide-react";
 
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxMiMaPV76CrWqiAmRPnSHp9IrxAJHFPuMhUyfmxZIbHa33idwjyV9HdSCZrpQHIgdc/exec"; 
@@ -13,6 +13,35 @@ const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(
 const currentMonthStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
 const formatRupiah = (n) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
 const formatQty = (n) => Number(parseFloat(n || 0).toFixed(2));
+
+// Mengecilkan ukuran foto (resize + kompres ke JPEG) sebelum dikirim ke server,
+// supaya upload dari HP tetap cepat meski foto aslinya beresolusi besar.
+function compressImageFile(file, maxDimension = 1000, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Gagal membaca file gambar."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("File bukan gambar yang valid."));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) { height = Math.round((height * maxDimension) / width); width = maxDimension; }
+          else { width = Math.round((width * maxDimension) / height); height = maxDimension; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(dataUrl);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 
 const KATEGORI_PENGELUARAN_OWNER = ["Gaji", "Operasional", "Tempat", "Modal Es", "Transport", "Marketing", "Overhead", "Bonus", "Admin", "Lain-lain"];
 const KATEGORI_PEMASUKAN_OWNER = ["Pemasukan", "Tambahan Modal", "Bonus", "Lain-lain"];
@@ -217,8 +246,11 @@ export default function App() {
 
   const emptySaleForm = { id: null, tanggal: todayStr(), cabang: "", customer: "", jumlah: "", hargaEs: "", ongkir: "", diskon: "" };
   const [saleForm, setSaleForm] = useState(emptySaleForm);
-  const emptyExpenseForm = { id: null, tanggal: todayStr(), cabang: "", kategori: "", jumlah: "", keterangan: "" };
+  const emptyExpenseForm = { id: null, tanggal: todayStr(), cabang: "", kategori: "", jumlah: "", keterangan: "", fotoBukti: "" };
   const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
+  const [expensePhotoFile, setExpensePhotoFile] = useState(null);
+  const [expensePhotoPreview, setExpensePhotoPreview] = useState("");
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [stockFilterDate, setStockFilterDate] = useState(todayStr());
   const [stockFilterCabang, setStockFilterCabang] = useState("Semua Cabang");
   const emptyStockForm = { id: null, tanggal: todayStr(), cabang: "", esMasukHariIni: "", sisaEsActual: "" };
@@ -553,18 +585,65 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const addExpense = () => {
+  const handleExpensePhotoSelect = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return showAlert("File harus berupa gambar.", "Format Salah", true);
+    try {
+      const compressedDataUrl = await compressImageFile(file);
+      setExpensePhotoFile(file);
+      setExpensePhotoPreview(compressedDataUrl);
+    } catch (e) {
+      showAlert("Gagal memproses foto: " + e.message, "Gagal", true);
+    }
+  };
+
+  const removeExpensePhoto = () => {
+    setExpensePhotoFile(null);
+    setExpensePhotoPreview("");
+    setExpenseForm((prev) => ({ ...prev, fotoBukti: "" }));
+  };
+
+  const addExpense = async () => {
     const cabangValue = isAdmin ? expenseForm.cabang : myCabang;
     if (!cabangValue || !expenseForm.kategori || !expenseForm.jumlah || parseFloat(expenseForm.jumlah) <= 0) {
       return showAlert("Harap lengkapi isian Cabang, Kategori, dan Nominal.", "Data Belum Lengkap", true);
     }
+
+    let fotoUrl = expenseForm.fotoBukti || "";
+
+    if (expensePhotoPreview && !fotoUrl) {
+      if (!GAS_URL) {
+        showToast("Mode lokal: foto tidak diupload (butuh koneksi Google Sheet).", "info");
+      } else {
+        setIsUploadingPhoto(true);
+        try {
+          const base64Only = expensePhotoPreview.split(",")[1];
+          const res = await fetch(GAS_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ action: "uploadFile", data: { base64: base64Only, mimeType: "image/jpeg", filename: `bukti_${Date.now()}.jpg` } }),
+          });
+          const result = await res.json();
+          if (!result.success) throw new Error(result.error || "Gagal upload foto");
+          fotoUrl = result.url;
+        } catch (e) {
+          setIsUploadingPhoto(false);
+          return showAlert("Gagal upload foto bukti: " + e.message + ". Coba simpan ulang, atau simpan tanpa foto.", "Upload Gagal", true);
+        }
+        setIsUploadingPhoto(false);
+      }
+    }
+
     const newExp = {
       id: expenseForm.id || "e_" + Date.now(),
       tanggal: expenseForm.tanggal, cabang: cabangValue, kategori: expenseForm.kategori,
       jumlah: parseFloat(expenseForm.jumlah) || 0, keterangan: expenseForm.keterangan.trim() || "-",
+      fotoBukti: fotoUrl,
     };
     dbSave("Expenses", newExp, "Pengeluaran");
     setExpenseForm({ ...emptyExpenseForm, tanggal: expenseForm.tanggal, cabang: isAdmin ? expenseForm.cabang : "" });
+    setExpensePhotoFile(null);
+    setExpensePhotoPreview("");
   };
 
   const addStock = () => {
@@ -860,7 +939,7 @@ export default function App() {
               <div className="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="flex border-b border-slate-200 bg-slate-50">
                   <button onClick={() => { setFormTab("penjualan"); setSaleForm(emptySaleForm); }} className={`flex-1 ${tabBtnClass(formTab === "penjualan")}`}><PlusCircle className="w-4 h-4" /> Jual Es</button>
-                  <button onClick={() => { setFormTab("pengeluaran"); setExpenseForm(emptyExpenseForm); }} className={`flex-1 ${tabBtnClass(formTab === "pengeluaran")}`}><MinusCircle className="w-4 h-4" /> Pengeluaran</button>
+                  <button onClick={() => { setFormTab("pengeluaran"); setExpenseForm(emptyExpenseForm); setExpensePhotoFile(null); setExpensePhotoPreview(""); }} className={`flex-1 ${tabBtnClass(formTab === "pengeluaran")}`}><MinusCircle className="w-4 h-4" /> Pengeluaran</button>
                 </div>
                 <div className="p-6">
                   {formTab === "penjualan" ? (
@@ -905,7 +984,7 @@ export default function App() {
                     <div className="space-y-4">
                        {expenseForm.id && (
                         <div className="bg-amber-100 text-amber-800 px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-between">
-                          <span>Sedang Mengedit Data...</span><button onClick={() => setExpenseForm(emptyExpenseForm)} className="text-amber-800 hover:text-red-600"><X className="w-4 h-4"/></button>
+                          <span>Sedang Mengedit Data...</span><button onClick={() => { setExpenseForm(emptyExpenseForm); setExpensePhotoFile(null); setExpensePhotoPreview(""); }} className="text-amber-800 hover:text-red-600"><X className="w-4 h-4"/></button>
                         </div>
                       )}
                       <div className="grid grid-cols-2 gap-4">
@@ -925,8 +1004,24 @@ export default function App() {
                       </div>
                       <div><label className={labelClass}>Nominal (Rp)</label><input type="number" value={expenseForm.jumlah} onChange={(e) => setExpenseForm({ ...expenseForm, jumlah: e.target.value })} className={inputClass} /></div>
                       <div><label className={labelClass}>Keterangan</label><input type="text" value={expenseForm.keterangan} onChange={(e) => setExpenseForm({ ...expenseForm, keterangan: e.target.value })} className={inputClass} /></div>
-                      <button onClick={addExpense} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg mt-2">
-                         {expenseForm.id ? "Update Pengeluaran" : "Simpan Pengeluaran"}
+                      <div>
+                        <label className={labelClass}>Foto Bukti <span className="normal-case font-medium text-slate-400">(opsional)</span></label>
+                        {(expensePhotoPreview || expenseForm.fotoBukti) ? (
+                          <div className="relative w-fit">
+                            <img src={expensePhotoPreview || expenseForm.fotoBukti} alt="Bukti pengeluaran" className="h-28 w-28 object-cover rounded-xl border-2 border-slate-200" />
+                            <button type="button" onClick={removeExpensePhoto} className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-lg"><X className="w-3.5 h-3.5" /></button>
+                          </div>
+                        ) : (
+                          <label className="flex items-center justify-center gap-2 border-2 border-dashed border-slate-300 rounded-xl h-24 cursor-pointer text-slate-400 hover:border-sky-400 hover:text-sky-500 transition-colors">
+                            <Camera className="w-5 h-5" />
+                            <span className="text-sm font-semibold">Tap untuk ambil/pilih foto</span>
+                            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleExpensePhotoSelect(e.target.files?.[0])} />
+                          </label>
+                        )}
+                      </div>
+                      <button onClick={addExpense} disabled={isUploadingPhoto} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg mt-2 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                         {isUploadingPhoto && <RefreshCw className="w-4 h-4 animate-spin" />}
+                         {isUploadingPhoto ? "Mengupload foto..." : (expenseForm.id ? "Update Pengeluaran" : "Simpan Pengeluaran")}
                       </button>
                     </div>
                   )}
@@ -961,7 +1056,16 @@ export default function App() {
                             {histTab === "pemasukan" && item.diskon > 0 && <div className="text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded inline-block mt-1">Diskon: {formatRupiah(item.diskon)}</div>}
                           </td>
                           <td className="px-5 py-4 text-slate-600">
-                            {histTab === "pemasukan" ? (<span className="bg-slate-100 px-2 py-1 rounded font-mono">{formatQty(item.jumlah)}</span>) : (item.keterangan)}
+                            {histTab === "pemasukan" ? (<span className="bg-slate-100 px-2 py-1 rounded font-mono">{formatQty(item.jumlah)}</span>) : (
+                              <div className="flex items-center gap-2">
+                                <span>{item.keterangan}</span>
+                                {item.fotoBukti && (
+                                  <a href={item.fotoBukti} target="_blank" rel="noopener noreferrer" title="Lihat foto bukti" className="text-sky-500 hover:text-sky-700 flex-shrink-0">
+                                    <Camera className="w-4 h-4" />
+                                  </a>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className={`px-5 py-4 font-black ${histTab === "pemasukan" ? "text-emerald-600" : "text-red-500"}`}>
                             {formatRupiah(histTab === "pemasukan" ? item.total : item.jumlah)}
@@ -974,7 +1078,7 @@ export default function App() {
                                     <Printer className="w-4 h-4" />
                                   </button>
                                 )}
-                                <button onClick={() => { if (histTab === "pemasukan") { editSale(item); } else { setExpenseForm(item); setFormTab("pengeluaran"); } }} className="p-1.5 hover:bg-sky-50 rounded-lg text-slate-400 hover:text-sky-600">
+                                <button onClick={() => { if (histTab === "pemasukan") { editSale(item); } else { setExpenseForm({ ...item, fotoBukti: item.fotoBukti || "" }); setExpensePhotoFile(null); setExpensePhotoPreview(""); setFormTab("pengeluaran"); } }} className="p-1.5 hover:bg-sky-50 rounded-lg text-slate-400 hover:text-sky-600">
                                   <Pencil className="w-4 h-4" />
                                 </button>
                                 <button onClick={() => confirmDeleteData(histTab === "pemasukan" ? "Sales" : "Expenses", item.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500">
