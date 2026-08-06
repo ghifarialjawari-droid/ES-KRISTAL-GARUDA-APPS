@@ -3,43 +3,10 @@ import React, { useState, useMemo, useEffect } from "react";
 import {
   Snowflake, Settings, Download, X, Trash2, PlusCircle, MinusCircle,
   ArrowDownCircle, ArrowUpCircle, Wallet, PackageSearch, Printer,
-  LogIn, LogOut, Users, ShieldCheck, Eye, EyeOff, Pencil, Smartphone, Sparkles, Database, WifiOff, RefreshCw, Info, AlertTriangle, Search, FileSpreadsheet
+  LogIn, LogOut, Users, ShieldCheck, Eye, EyeOff, Pencil, Smartphone, Database, WifiOff, RefreshCw, Info, AlertTriangle, Search, FileSpreadsheet
 } from "lucide-react";
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
-} from "recharts";
 
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxMiMaPV76CrWqiAmRPnSHp9IrxAJHFPuMhUyfmxZIbHa33idwjyV9HdSCZrpQHIgdc/exec"; 
-
-const apiKey = ""; 
-
-async function fetchGeminiAI(prompt) {
-  if (!apiKey) return "API Key Gemini belum diatur. Silakan isi variabel apiKey di kode sumber.";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-  const payload = { contents: [{ parts: [{ text: prompt }] }] };
-  
-  let delay = 1000;
-  for (let i = 0; i < 6; i++) {
-    try {
-      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || "Analisis tidak tersedia.";
-    } catch (err) {
-      if (i === 5) throw err;
-      await new Promise(r => setTimeout(r, delay));
-      delay *= 2;
-    }
-  }
-}
-
-const IceLogo = ({ className = "w-10 h-10 text-sky-500" }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-  </svg>
-);
 
 const pad = (n) => String(n).padStart(2, "0");
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
@@ -258,9 +225,6 @@ export default function App() {
   const [stockForm, setStockForm] = useState(emptyStockForm);
   
   const [reportMonth, setReportMonth] = useState(currentMonthStr());
-  const [chartCabang, setChartCabang] = useState("Semua Cabang");
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [aiInsight, setAiInsight] = useState("");
 
   // ==========================================
   // KAS OWNER: Arus Kas (dulu "Catatan Transaksi Rahasia")
@@ -490,7 +454,6 @@ export default function App() {
       const result = await res.json();
       if (!result.success) throw new Error(result.error || "Gagal server");
       showToast((labelSukses || "Data") + " tersimpan & tersinkron ke Google Spreadsheet", "success");
-      loadData();
     } catch (e) {
       showToast("Tersimpan lokal, GAGAL sinkron ke Google Spreadsheet: " + e.message, "error");
     }
@@ -510,7 +473,6 @@ export default function App() {
       const result = await res.json();
       if (!result.success) throw new Error(result.error || "Gagal server");
       showToast((labelSukses || "Data") + " dihapus & tersinkron ke Google Spreadsheet", "success");
-      loadData();
     } catch (e) {
       showToast("Terhapus lokal, GAGAL sinkron hapus ke Google Spreadsheet: " + e.message, "error");
     }
@@ -674,26 +636,6 @@ export default function App() {
   }, [sales, reportMonth, cabangList]);
 
   const totalRingkasan = monthlySummary.reduce((acc, r) => ({ esTerjual: formatQty(acc.esTerjual + r.esTerjual), customer: acc.customer + r.customer, pendapatan: acc.pendapatan + r.pendapatan }), { esTerjual: 0, customer: 0, pendapatan: 0 });
-
-  const handleGetAIInsight = async () => {
-    setIsAiLoading(true); setAiInsight("");
-    try {
-      const prompt = `Kamu AI Konsultan Bisnis. Analisis singkat (3 paragraf santai & ramah) bisnis "Es Kristal Garuda" bulan ${reportMonth}. Data: Cabang: ${monthlySummary.length}, Es Terjual: ${totalRingkasan.esTerjual}, Pendapatan: Rp ${totalRingkasan.pendapatan.toLocaleString("id-ID")}, Pelanggan: ${totalRingkasan.customer}. Beri pujian dan 1-2 saran praktis pemasaran.`;
-      const result = await fetchGeminiAI(prompt); setAiInsight(result);
-    } catch (error) { setAiInsight("Gagal analisis AI. Cek koneksi."); } finally { setIsAiLoading(false); }
-  };
-
-  const chartData = useMemo(() => {
-    const [y, m] = reportMonth.split("-").map(Number);
-    if (!y || !m) return [];
-    const daysInMonth = new Date(y, m, 0).getDate(); const arr = [];
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = `${y}-${pad(m)}-${pad(d)}`;
-      const daySales = sales.filter((s) => getSafeDate(s.tanggal) === dateStr && (chartCabang === "Semua Cabang" || s.cabang === chartCabang));
-      arr.push({ hari: d, es: +daySales.reduce((a, s) => a + parseFloat(s.jumlah || 0), 0).toFixed(2), customer: new Set(daySales.map((s) => s.customer)).size });
-    }
-    return arr;
-  }, [sales, reportMonth, chartCabang]);
 
   const exportCSV = (month) => {
     const monthSales = sales.filter((s) => getSafeDate(s.tanggal).startsWith(month));
