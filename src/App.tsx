@@ -16,7 +16,7 @@ const formatQty = (n) => Number(parseFloat(n || 0).toFixed(2));
 
 // Mengecilkan ukuran foto (resize + kompres ke JPEG) sebelum dikirim ke server,
 // supaya upload dari HP tetap cepat meski foto aslinya beresolusi besar.
-function compressImageFile(file, maxDimension = 1000, quality = 0.7) {
+function compressImageFile(file, maxDimension = 640, quality = 0.4, targetMaxBytes = 150000) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Gagal membaca file gambar."));
@@ -33,7 +33,18 @@ function compressImageFile(file, maxDimension = 1000, quality = 0.7) {
         canvas.width = width; canvas.height = height;
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+
+        // Kompres bertahap: kalau hasilnya masih besar, turunkan kualitas lagi
+        // (maksimal beberapa kali percobaan) sampai di bawah target ukuran,
+        // supaya upload tetap ringan meski koneksi HP lagi lemah.
+        let q = quality;
+        let dataUrl = canvas.toDataURL("image/jpeg", q);
+        let attempts = 0;
+        while (dataUrl.length > targetMaxBytes * 1.37 && q > 0.15 && attempts < 4) {
+          q -= 0.1;
+          dataUrl = canvas.toDataURL("image/jpeg", q);
+          attempts++;
+        }
         resolve(dataUrl);
       };
       img.src = reader.result;
@@ -603,6 +614,26 @@ export default function App() {
     setExpenseForm((prev) => ({ ...prev, fotoBukti: "" }));
   };
 
+  const uploadPhotoWithRetry = async (base64Only, attempt = 1) => {
+    const MAX_ATTEMPT = 3;
+    try {
+      const res = await fetch(GAS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "uploadFile", data: { base64: base64Only, mimeType: "image/jpeg", filename: `bukti_${Date.now()}.jpg` } }),
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || "Gagal upload foto");
+      return result.url;
+    } catch (e) {
+      if (attempt < MAX_ATTEMPT) {
+        await new Promise((r) => setTimeout(r, 1200 * attempt));
+        return uploadPhotoWithRetry(base64Only, attempt + 1);
+      }
+      throw e;
+    }
+  };
+
   const addExpense = async () => {
     const cabangValue = isAdmin ? expenseForm.cabang : myCabang;
     if (!cabangValue || !expenseForm.kategori || !expenseForm.jumlah || parseFloat(expenseForm.jumlah) <= 0) {
@@ -610,6 +641,7 @@ export default function App() {
     }
 
     let fotoUrl = expenseForm.fotoBukti || "";
+    let fotoGagalUpload = false;
 
     if (expensePhotoPreview && !fotoUrl) {
       if (!GAS_URL) {
@@ -618,17 +650,13 @@ export default function App() {
         setIsUploadingPhoto(true);
         try {
           const base64Only = expensePhotoPreview.split(",")[1];
-          const res = await fetch(GAS_URL, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({ action: "uploadFile", data: { base64: base64Only, mimeType: "image/jpeg", filename: `bukti_${Date.now()}.jpg` } }),
-          });
-          const result = await res.json();
-          if (!result.success) throw new Error(result.error || "Gagal upload foto");
-          fotoUrl = result.url;
+          fotoUrl = await uploadPhotoWithRetry(base64Only);
         } catch (e) {
-          setIsUploadingPhoto(false);
-          return showAlert("Gagal upload foto bukti: " + e.message + ". Coba simpan ulang, atau simpan tanpa foto.", "Upload Gagal", true);
+          // Upload foto gagal (sudah dicoba beberapa kali), TAPI transaksinya tetap
+          // lanjut disimpan tanpa foto, supaya data pengeluaran tidak pernah gagal
+          // tersimpan hanya gara-gara foto.
+          fotoGagalUpload = true;
+          fotoUrl = "";
         }
         setIsUploadingPhoto(false);
       }
@@ -641,6 +669,9 @@ export default function App() {
       fotoBukti: fotoUrl,
     };
     dbSave("Expenses", newExp, "Pengeluaran");
+    if (fotoGagalUpload) {
+      showToast("Data pengeluaran tersimpan, TAPI foto gagal diupload. Coba edit transaksi ini nanti untuk tambah fotonya lagi.", "error");
+    }
     setExpenseForm({ ...emptyExpenseForm, tanggal: expenseForm.tanggal, cabang: isAdmin ? expenseForm.cabang : "" });
     setExpensePhotoFile(null);
     setExpensePhotoPreview("");
