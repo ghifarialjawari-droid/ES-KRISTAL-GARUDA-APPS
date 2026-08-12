@@ -159,24 +159,7 @@ function LoginPage({ onLogin, installPrompt, isOnline, showToast }) {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const submit = async () => {
-    if (!username.trim() || !password.trim()) { setError("Masukkan username dan password!"); return; }
-    setIsLoading(true); setError("");
-    try {
-      if (GAS_URL) {
-        const res = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "login", data: { username: username.trim(), password: password } }) });
-        const data = await res.json();
-        if (data.success) { showToast("Berhasil Login", "success"); onLogin(data.user); } else { setError(data.error || "Username atau password salah."); }
-      } else {
-        const localUsers = JSON.parse(localStorage.getItem("es_kristal_users") || "[]");
-        if (localUsers.length === 0) {
-          localUsers.push({ id: "u1", username: "admin", password: "admin123", nama: "Super Admin", role: "admin", cabang: "Pusat" });
-          localStorage.setItem("es_kristal_users", JSON.stringify(localUsers));
-        }
-        const user = localUsers.find((u) => u.username === username.trim() && u.password === password);
-        if (user) { showToast("Login Mode Lokal Berhasil", "success"); onLogin(user); } else { setError("Username atau password salah (Mode Lokal)."); }
-      }
-   const submit = async () => {
+ const submit = async () => {
     if (!username.trim() || !password.trim()) { setError("Masukkan username dan password!"); return; }
     setIsLoading(true); setError("");
     try {
