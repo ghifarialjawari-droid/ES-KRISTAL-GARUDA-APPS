@@ -176,7 +176,9 @@ function LoginPage({ onLogin, installPrompt, isOnline, showToast }) {
         const user = localUsers.find((u) => u.username === username.trim() && u.password === password);
         if (user) { showToast("Login Mode Lokal Berhasil", "success"); onLogin(user); } else { setError("Username atau password salah (Mode Lokal)."); }
       }
-    } catch (err) { setError("Gagal terhubung ke server. Periksa koneksi internet Anda."); } finally { setIsLoading(false); }
+    } catch (err) { 
+  setError(`[DEBUG] ${err.name}: ${err.message}`); 
+} finally { setIsLoading(false); }
   };
 
   return (
