@@ -176,9 +176,26 @@ function LoginPage({ onLogin, installPrompt, isOnline, showToast }) {
         const user = localUsers.find((u) => u.username === username.trim() && u.password === password);
         if (user) { showToast("Login Mode Lokal Berhasil", "success"); onLogin(user); } else { setError("Username atau password salah (Mode Lokal)."); }
       }
-    } catch (err) { 
-  setError(`[DEBUG] ${err.name}: ${err.message}`); 
-} finally { setIsLoading(false); }
+   const submit = async () => {
+    if (!username.trim() || !password.trim()) { setError("Masukkan username dan password!"); return; }
+    setIsLoading(true); setError("");
+    try {
+      if (GAS_URL) {
+        const res = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "login", data: { username: username.trim(), password: password } }) });
+        const rawText = await res.text();
+        let data;
+        try {
+          data = JSON.parse(rawText);
+        } catch (parseErr) {
+          setError(`[DEBUG] Status: ${res.status}, Isi balasan: ${rawText.substring(0, 300)}`);
+          setIsLoading(false);
+          return;
+        }
+        if (data.success) { showToast("Berhasil Login", "success"); onLogin(data.user); } else { setError(data.error || "Username atau password salah."); }
+      } else {
+        // ...kode mode lokal tetap sama, tidak diubah
+      }
+    } catch (err) { setError(`[DEBUG] ${err.name}: ${err.message}`); } finally { setIsLoading(false); }
   };
 
   return (
