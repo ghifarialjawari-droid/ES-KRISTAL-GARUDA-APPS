@@ -238,7 +238,28 @@ export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [stockRecords, setStockRecords] = useState([]);
 
-  const [currentUser, setCurrentUser] = useState(null);
+  const SESSION_KEY = "es_kristal_session";
+const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
+
+const [currentUser, setCurrentUser] = useState(() => {
+  try {
+    const saved = localStorage.getItem(SESSION_KEY);
+    if (saved) {
+      const session = JSON.parse(saved);
+      if (session.user && session.loginAt && (Date.now() - session.loginAt) < SESSION_DURATION_MS) {
+        return session.user; // sesi masih berlaku, langsung login otomatis
+      }
+      localStorage.removeItem(SESSION_KEY); // sesi kadaluarsa, buang
+    }
+  } catch (e) {}
+  return null;
+});
+  const handleLoginSuccess = (user) => {
+  setCurrentUser(user);
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ user, loginAt: Date.now() }));
+  } catch (e) {}
+};
   const isAdmin = currentUser?.role === "admin";
   const myCabang = currentUser?.cabang || "";
 
@@ -882,7 +903,7 @@ export default function App() {
     };
   };
 
-  if (!currentUser) return <LoginPage onLogin={setCurrentUser} installPrompt={deferredPrompt ? installPWA : null} isOnline={isOnline} showToast={showToast} />;
+  if (!currentUser) return <LoginPage onLogin={handleLoginSuccess} installPrompt={deferredPrompt ? installPWA : null} isOnline={isOnline} showToast={showToast} />;
 
   const navItems = isAdmin ? [["kasir", "Kasir"], ["stok", "Stok"], ["laporan", "Laporan"], ["users", "Pengguna"], ["owner", "Kas Owner"]] : [["kasir", "Kasir"], ["stok", "Stok"]];
   const tabBtnClass = (active) => `flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition ${active ? "border-sky-500 text-sky-600 bg-sky-50" : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50"}`;
@@ -912,7 +933,7 @@ export default function App() {
           {isAdmin && (<button onClick={() => setShowSettings(true)} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg text-sm font-bold"><Settings className="w-4 h-4" /><span className="hidden sm:inline">Seting</span></button>)}
           {isAdmin && (<button onClick={() => setShowExportModal(true)} className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg text-sm font-bold"><Download className="w-4 h-4" /><span className="hidden sm:inline">CSV</span></button>)}
           <div className="flex items-center gap-2 bg-slate-900/40 rounded-lg px-3 py-2 text-sm"><span className="font-bold">{currentUser.nama}</span><span className="text-[10px] bg-sky-400 text-sky-950 font-bold px-2 py-0.5 rounded-md">{myCabang || "Admin"}</span></div>
-          <button onClick={() => setDialog({ show: true, type: "confirm", msg: "Keluar aplikasi?", onConfirm: () => { setCurrentUser(null); closeDialog(); } })} className="bg-red-500 hover:bg-red-600 p-2 rounded-lg"><LogOut className="w-5 h-5" /></button>
+          <button onClick={() => setDialog({ show: true, type: "confirm", msg: "Keluar aplikasi?", onConfirm: () => { setCurrentUser(null); localStorage.removeItem(SESSION_KEY); closeDialog(); })} className="bg-red-500 hover:bg-red-600 p-2 rounded-lg"><LogOut className="w-5 h-5" /></button>
         </div>
       </header>
 
