@@ -8,6 +8,12 @@ import {
 
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxMiMaPV76CrWqiAmRPnSHp9IrxAJHFPuMhUyfmxZIbHa33idwjyV9HdSCZrpQHIgdc/exec"; 
 
+// ==========================================
+// SESI LOGIN PERSISTEN (7 HARI)
+// ==========================================
+const SESSION_KEY = "es_kristal_session";
+const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
+
 const pad = (n) => String(n).padStart(2, "0");
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const currentMonthStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
@@ -159,26 +165,24 @@ function LoginPage({ onLogin, installPrompt, isOnline, showToast }) {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
- const submit = async () => {
+  const submit = async () => {
     if (!username.trim() || !password.trim()) { setError("Masukkan username dan password!"); return; }
     setIsLoading(true); setError("");
     try {
       if (GAS_URL) {
         const res = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "login", data: { username: username.trim(), password: password } }) });
-        const rawText = await res.text();
-        let data;
-        try {
-          data = JSON.parse(rawText);
-        } catch (parseErr) {
-          setError(`[DEBUG] Status: ${res.status}, Isi balasan: ${rawText.substring(0, 300)}`);
-          setIsLoading(false);
-          return;
-        }
+        const data = await res.json();
         if (data.success) { showToast("Berhasil Login", "success"); onLogin(data.user); } else { setError(data.error || "Username atau password salah."); }
       } else {
-        // ...kode mode lokal tetap sama, tidak diubah
+        const localUsers = JSON.parse(localStorage.getItem("es_kristal_users") || "[]");
+        if (localUsers.length === 0) {
+          localUsers.push({ id: "u1", username: "admin", password: "admin123", nama: "Super Admin", role: "admin", cabang: "Pusat" });
+          localStorage.setItem("es_kristal_users", JSON.stringify(localUsers));
+        }
+        const user = localUsers.find((u) => u.username === username.trim() && u.password === password);
+        if (user) { showToast("Login Mode Lokal Berhasil", "success"); onLogin(user); } else { setError("Username atau password salah (Mode Lokal)."); }
       }
-    } catch (err) { setError(`[DEBUG] ${err.name}: ${err.message}`); } finally { setIsLoading(false); }
+    } catch (err) { setError("Gagal terhubung ke server. Periksa koneksi internet Anda."); } finally { setIsLoading(false); }
   };
 
   return (
@@ -238,30 +242,35 @@ export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [stockRecords, setStockRecords] = useState([]);
 
-  const SESSION_KEY = "es_kristal_session";
-const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
-
-const [currentUser, setCurrentUser] = useState(() => {
-  try {
-    const saved = localStorage.getItem(SESSION_KEY);
-    if (saved) {
-      const session = JSON.parse(saved);
-      if (session.user && session.loginAt && (Date.now() - session.loginAt) < SESSION_DURATION_MS) {
-        return session.user; // sesi masih berlaku, langsung login otomatis
+  // ==========================================
+  // SESI LOGIN PERSISTEN (7 HARI) — cek localStorage sekali di awal.
+  // Kalau ada sesi tersimpan dan belum lewat 7 hari, langsung login
+  // otomatis tanpa perlu isi username/password lagi.
+  // ==========================================
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SESSION_KEY);
+      if (saved) {
+        const session = JSON.parse(saved);
+        if (session.user && session.loginAt && (Date.now() - session.loginAt) < SESSION_DURATION_MS) {
+          return session.user;
+        }
+        localStorage.removeItem(SESSION_KEY);
       }
-      localStorage.removeItem(SESSION_KEY); // sesi kadaluarsa, buang
-    }
-  } catch (e) {}
-  return null;
-});
-  const handleLoginSuccess = (user) => {
-  setCurrentUser(user);
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ user, loginAt: Date.now() }));
-  } catch (e) {}
-};
+    } catch (e) {}
+    return null;
+  });
   const isAdmin = currentUser?.role === "admin";
   const myCabang = currentUser?.cabang || "";
+
+  // Dipanggil saat LoginPage berhasil verifikasi ke server: simpan user +
+  // waktu login ke localStorage supaya sesi bertahan 7 hari ke depan.
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(user);
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ user, loginAt: Date.now() }));
+    } catch (e) {}
+  };
 
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState("cabang");
@@ -933,7 +942,7 @@ const [currentUser, setCurrentUser] = useState(() => {
           {isAdmin && (<button onClick={() => setShowSettings(true)} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg text-sm font-bold"><Settings className="w-4 h-4" /><span className="hidden sm:inline">Seting</span></button>)}
           {isAdmin && (<button onClick={() => setShowExportModal(true)} className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg text-sm font-bold"><Download className="w-4 h-4" /><span className="hidden sm:inline">CSV</span></button>)}
           <div className="flex items-center gap-2 bg-slate-900/40 rounded-lg px-3 py-2 text-sm"><span className="font-bold">{currentUser.nama}</span><span className="text-[10px] bg-sky-400 text-sky-950 font-bold px-2 py-0.5 rounded-md">{myCabang || "Admin"}</span></div>
-          <button onClick={() => setDialog({ show: true, type: "confirm", msg: "Keluar aplikasi?", onConfirm: () => { setCurrentUser(null); localStorage.removeItem(SESSION_KEY); closeDialog(); })} className="bg-red-500 hover:bg-red-600 p-2 rounded-lg"><LogOut className="w-5 h-5" /></button>
+          <button onClick={() => setDialog({ show: true, type: "confirm", msg: "Keluar aplikasi?", onConfirm: () => { setCurrentUser(null); localStorage.removeItem(SESSION_KEY); closeDialog(); } })} className="bg-red-500 hover:bg-red-600 p-2 rounded-lg"><LogOut className="w-5 h-5" /></button>
         </div>
       </header>
 
