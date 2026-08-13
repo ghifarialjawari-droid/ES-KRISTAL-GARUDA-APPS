@@ -14,6 +14,57 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbxMiMaPV76CrWqiAmRPnSHp
 const SESSION_KEY = "es_kristal_session";
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
 
+// ==========================================
+// HELPER TERPUSAT UNTUK SEMUA REQUEST KE BACKEND
+// Dulu setiap fungsi (login, loadData, dbSave, dbDelete, upload foto) menulis
+// ulang kode fetch+header+parsing sendiri-sendiri -> rawan typo & rawan bug.
+// Sekarang semua lewat satu fungsi ini, dengan tambahan:
+// - Timeout otomatis (20 detik) supaya kalau jaringan lambat, tidak menggantung
+//   selamanya dan user dapat pesan jelas, bukan macet di "Memverifikasi...".
+// - response dibaca sebagai teks dulu baru di-parse JSON, supaya kalau server
+//   (atau operator seluler) mengembalikan HTML/halaman aneh, errornya jelas
+//   ("Server mengembalikan data tidak valid") bukan malah crash membingungkan.
+// ==========================================
+async function callApi(action, extra = {}, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(GAS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action, ...extra }),
+      signal: controller.signal,
+    });
+    const rawText = await res.text();
+    try {
+      return JSON.parse(rawText);
+    } catch (parseErr) {
+      throw new Error("Server mengembalikan data tidak valid. Coba ganti jaringan (WiFi/Data) lalu ulangi.");
+    }
+  } catch (err) {
+    if (err.name === "AbortError") throw new Error("Koneksi terlalu lama (timeout 20 detik). Periksa sinyal/kuota internet Anda.");
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// Kunci localStorage dikumpulkan di satu tempat supaya tidak ada typo/duplikasi
+// antar fungsi (loadData, dbSave, dbDelete, logout, dsb).
+const LOCAL_KEYS = {
+  Users: "es_kristal_users",
+  Sales: "es_kristal_sales",
+  Expenses: "es_kristal_expenses",
+  Stocks: "es_kristal_stocks",
+  OwnerNotes: "es_kristal_owner_notes",
+  HutangPiutang: "es_kristal_hutang_piutang",
+};
+
+// Baca cache lokal dengan aman (tidak pernah throw, selalu balikin array).
+const readLocalCache = (key) => {
+  try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch (e) { return []; }
+};
+
 const pad = (n) => String(n).padStart(2, "0");
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const currentMonthStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
@@ -170,8 +221,7 @@ function LoginPage({ onLogin, installPrompt, isOnline, showToast }) {
     setIsLoading(true); setError("");
     try {
       if (GAS_URL) {
-        const res = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "login", data: { username: username.trim(), password: password } }) });
-        const data = await res.json();
+        const data = await callApi("login", { data: { username: username.trim(), password: password } });
         if (data.success) { showToast("Berhasil Login", "success"); onLogin(data.user); } else { setError(data.error || "Username atau password salah."); }
       } else {
         const localUsers = JSON.parse(localStorage.getItem("es_kristal_users") || "[]");
@@ -182,7 +232,7 @@ function LoginPage({ onLogin, installPrompt, isOnline, showToast }) {
         const user = localUsers.find((u) => u.username === username.trim() && u.password === password);
         if (user) { showToast("Login Mode Lokal Berhasil", "success"); onLogin(user); } else { setError("Username atau password salah (Mode Lokal)."); }
       }
-    } catch (err) { setError("Gagal terhubung ke server. Periksa koneksi internet Anda."); } finally { setIsLoading(false); }
+    } catch (err) { setError(err.message || "Gagal terhubung ke server. Periksa koneksi internet Anda."); } finally { setIsLoading(false); }
   };
 
   return (
@@ -237,10 +287,14 @@ export default function App() {
   useEffect(() => { localStorage.setItem("es_kristal_cabang", JSON.stringify(cabangList)); }, [cabangList]);
   useEffect(() => { localStorage.setItem("es_kristal_kategori", JSON.stringify(kategoriList)); }, [kategoriList]);
 
-  const [users, setUsers] = useState([]);
-  const [sales, setSales] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [stockRecords, setStockRecords] = useState([]);
+  // Data diisi dari cache localStorage sejak render pertama (bukan array kosong).
+  // Efeknya: begitu user login (atau sesi 7 hari otomatis aktif), dashboard
+  // LANGSUNG menampilkan data terakhir yang tersimpan di HP, tanpa layar kosong
+  // menunggu jaringan. loadData() tetap jalan di background untuk menyegarkan.
+  const [users, setUsers] = useState(() => readLocalCache(LOCAL_KEYS.Users));
+  const [sales, setSales] = useState(() => readLocalCache(LOCAL_KEYS.Sales));
+  const [expenses, setExpenses] = useState(() => readLocalCache(LOCAL_KEYS.Expenses));
+  const [stockRecords, setStockRecords] = useState(() => readLocalCache(LOCAL_KEYS.Stocks));
 
   // ==========================================
   // SESI LOGIN PERSISTEN (7 HARI) — cek localStorage sekali di awal.
@@ -304,7 +358,7 @@ export default function App() {
   // ==========================================
   // KAS OWNER: Arus Kas (dulu "Catatan Transaksi Rahasia")
   // ==========================================
-  const [ownerNotes, setOwnerNotes] = useState([]);
+  const [ownerNotes, setOwnerNotes] = useState(() => (isAdmin ? readLocalCache(LOCAL_KEYS.OwnerNotes) : []));
   const [ownerSubTab, setOwnerSubTab] = useState("ringkasan");
   const [ownerReportMonth, setOwnerReportMonth] = useState(currentMonthStr());
   const emptyOwnerForm = { id: null, tanggal: todayStr(), cabang: "Semua Cabang", keterangan: "", jumlah: "", jenis: "keluar", kategori: "" };
@@ -381,7 +435,7 @@ export default function App() {
   // ==========================================
   // HUTANG PIUTANG (dalam Kas Owner)
   // ==========================================
-  const [hutangPiutangList, setHutangPiutangList] = useState([]);
+  const [hutangPiutangList, setHutangPiutangList] = useState(() => (isAdmin ? readLocalCache(LOCAL_KEYS.HutangPiutang) : []));
   const emptyHutangForm = { id: null, nama: "", jenis: "Hutang", jumlah: "", tanggal: todayStr(), keterangan: "", status: "Belum Lunas" };
   const [hutangForm, setHutangForm] = useState(emptyHutangForm);
   const [hutangSearch, setHutangSearch] = useState("");
@@ -473,60 +527,71 @@ export default function App() {
     else { showAlert("Gunakan menu 'Add to Home Screen' pada browser HP Anda untuk menginstal.", "Cara Install"); }
   };
 
+  // Guard supaya kalau user pencet "Refresh" berkali-kali cepat, atau
+  // loadData ke-trigger dobel (login + useEffect), tidak numpuk beberapa
+  // request bersamaan yang saling rebutan dan membebani server.
+  const isLoadingRef = React.useRef(false);
+
   const loadData = async () => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     setAppLoading(true);
     try {
       if (GAS_URL) {
-        const res = await fetch(`${GAS_URL}?t=${new Date().getTime()}`, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "getData", data: { role: currentUser?.role } }) });
-        const resData = await res.json();
+        // Kirim juga cabang, supaya nanti backend bisa (kalau perlu) memangkas
+        // ukuran data khusus untuk akun pegawai. Aman dikirim ke akun admin juga
+        // karena backend tetap mengecek role sebelum menentukan apa yang dibalas.
+        const resData = await callApi("getData", { data: { role: currentUser?.role, cabang: currentUser?.cabang || "" } });
         if (resData.success) {
           setUsers(resData.users || []); setSales(resData.sales || []); setExpenses(resData.expenses || []); setStockRecords(resData.stocks || []);
-          setOwnerNotes(resData.ownerNotes || []); setHutangPiutangList(resData.hutangPiutang || []);
-          localStorage.setItem("es_kristal_users", JSON.stringify(resData.users || []));
-          localStorage.setItem("es_kristal_sales", JSON.stringify(resData.sales || []));
-          localStorage.setItem("es_kristal_expenses", JSON.stringify(resData.expenses || []));
-          localStorage.setItem("es_kristal_stocks", JSON.stringify(resData.stocks || []));
-          if (resData.ownerNotes) localStorage.setItem("es_kristal_owner_notes", JSON.stringify(resData.ownerNotes));
-          if (resData.hutangPiutang) localStorage.setItem("es_kristal_hutang_piutang", JSON.stringify(resData.hutangPiutang));
+          localStorage.setItem(LOCAL_KEYS.Users, JSON.stringify(resData.users || []));
+          localStorage.setItem(LOCAL_KEYS.Sales, JSON.stringify(resData.sales || []));
+          localStorage.setItem(LOCAL_KEYS.Expenses, JSON.stringify(resData.expenses || []));
+          localStorage.setItem(LOCAL_KEYS.Stocks, JSON.stringify(resData.stocks || []));
+          // ownerNotes/hutangPiutang cuma dikirim backend untuk role admin (lihat Kode.gs),
+          // jadi field-nya otomatis kosong untuk akun pegawai — aman untuk disimpan begitu saja.
+          if (currentUser?.role === "admin") {
+            setOwnerNotes(resData.ownerNotes || []); setHutangPiutangList(resData.hutangPiutang || []);
+            localStorage.setItem(LOCAL_KEYS.OwnerNotes, JSON.stringify(resData.ownerNotes || []));
+            localStorage.setItem(LOCAL_KEYS.HutangPiutang, JSON.stringify(resData.hutangPiutang || []));
+          }
         } else {
           showAlert(resData.error || "Gagal mengambil data dari Google Spreadsheet.", "Sinkronisasi Gagal", true);
         }
       } else {
-        setUsers(JSON.parse(localStorage.getItem("es_kristal_users") || "[]"));
-        setSales(JSON.parse(localStorage.getItem("es_kristal_sales") || "[]"));
-        setExpenses(JSON.parse(localStorage.getItem("es_kristal_expenses") || "[]"));
-        setStockRecords(JSON.parse(localStorage.getItem("es_kristal_stocks") || "[]"));
+        setUsers(readLocalCache(LOCAL_KEYS.Users));
+        setSales(readLocalCache(LOCAL_KEYS.Sales));
+        setExpenses(readLocalCache(LOCAL_KEYS.Expenses));
+        setStockRecords(readLocalCache(LOCAL_KEYS.Stocks));
         if (currentUser?.role === "admin") {
-          setOwnerNotes(JSON.parse(localStorage.getItem("es_kristal_owner_notes") || "[]"));
-          setHutangPiutangList(JSON.parse(localStorage.getItem("es_kristal_hutang_piutang") || "[]"));
+          setOwnerNotes(readLocalCache(LOCAL_KEYS.OwnerNotes));
+          setHutangPiutangList(readLocalCache(LOCAL_KEYS.HutangPiutang));
         }
       }
     } catch (e) {
-      showAlert("Gagal terhubung ke Google Spreadsheet. Memuat data cadangan offline. Periksa koneksi internet atau URL Apps Script.", "Koneksi Bermasalah", true);
-      setUsers(JSON.parse(localStorage.getItem("es_kristal_users") || "[]")); setSales(JSON.parse(localStorage.getItem("es_kristal_sales") || "[]"));
-      setExpenses(JSON.parse(localStorage.getItem("es_kristal_expenses") || "[]")); setStockRecords(JSON.parse(localStorage.getItem("es_kristal_stocks") || "[]"));
-      if (currentUser?.role === "admin") {
-        setOwnerNotes(JSON.parse(localStorage.getItem("es_kristal_owner_notes") || "[]"));
-        setHutangPiutangList(JSON.parse(localStorage.getItem("es_kristal_hutang_piutang") || "[]"));
-      }
-    } finally { setAppLoading(false); }
+      // Data cache (sudah dimuat sejak awal render) TETAP tampil apa adanya —
+      // tidak perlu ditimpa ulang di sini, jadi kalau gagal sinkron, user tetap
+      // melihat data terakhir yang tersimpan, cuma dikasih tahu lewat toast/alert.
+      showAlert(e.message || "Gagal terhubung ke Google Spreadsheet. Menampilkan data cadangan offline.", "Koneksi Bermasalah", true);
+    } finally {
+      setAppLoading(false);
+      isLoadingRef.current = false;
+    }
   };
 
   useEffect(() => { if (currentUser) loadData(); }, [currentUser]);
 
   const dbSave = async (table, item, labelSukses) => {
     const tableMap = { Users: setUsers, Sales: setSales, Expenses: setExpenses, Stocks: setStockRecords, OwnerNotes: setOwnerNotes, HutangPiutang: setHutangPiutangList };
-    const localKey = { Users: "es_kristal_users", Sales: "es_kristal_sales", Expenses: "es_kristal_expenses", Stocks: "es_kristal_stocks", OwnerNotes: "es_kristal_owner_notes", HutangPiutang: "es_kristal_hutang_piutang" };
     tableMap[table]((prev) => {
       const exists = prev.find((x) => x.id === item.id);
       const newData = exists ? prev.map((x) => (x.id === item.id ? item : x)) : [...prev, item];
-      localStorage.setItem(localKey[table], JSON.stringify(newData));
+      localStorage.setItem(LOCAL_KEYS[table], JSON.stringify(newData));
       return newData;
     });
     if (!GAS_URL) { showToast((labelSukses || "Data") + " tersimpan (mode lokal, tidak tersambung Google Sheet)", "info"); return; }
     try {
-      const res = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "save", table, data: item }) });
-      const result = await res.json();
+      const result = await callApi("save", { table, data: item });
       if (!result.success) throw new Error(result.error || "Gagal server");
       showToast((labelSukses || "Data") + " tersimpan & tersinkron ke Google Spreadsheet", "success");
     } catch (e) {
@@ -536,16 +601,14 @@ export default function App() {
 
   const dbDelete = async (table, id, labelSukses) => {
     const tableMap = { Users: setUsers, Sales: setSales, Expenses: setExpenses, Stocks: setStockRecords, OwnerNotes: setOwnerNotes, HutangPiutang: setHutangPiutangList };
-    const localKey = { Users: "es_kristal_users", Sales: "es_kristal_sales", Expenses: "es_kristal_expenses", Stocks: "es_kristal_stocks", OwnerNotes: "es_kristal_owner_notes", HutangPiutang: "es_kristal_hutang_piutang" };
     tableMap[table]((prev) => {
       const newData = prev.filter((x) => x.id !== id);
-      localStorage.setItem(localKey[table], JSON.stringify(newData));
+      localStorage.setItem(LOCAL_KEYS[table], JSON.stringify(newData));
       return newData;
     });
     if (!GAS_URL) { showToast((labelSukses || "Data") + " dihapus (mode lokal)", "info"); return; }
     try {
-      const res = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "delete", table, data: { id } }) });
-      const result = await res.json();
+      const result = await callApi("delete", { table, data: { id } });
       if (!result.success) throw new Error(result.error || "Gagal server");
       showToast((labelSukses || "Data") + " dihapus & tersinkron ke Google Spreadsheet", "success");
     } catch (e) {
@@ -649,12 +712,7 @@ export default function App() {
   const uploadPhotoWithRetry = async (base64Only, attempt = 1) => {
     const MAX_ATTEMPT = 3;
     try {
-      const res = await fetch(GAS_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action: "uploadFile", data: { base64: base64Only, mimeType: "image/jpeg", filename: `bukti_${Date.now()}.jpg` } }),
-      });
-      const result = await res.json();
+      const result = await callApi("uploadFile", { data: { base64: base64Only, mimeType: "image/jpeg", filename: `bukti_${Date.now()}.jpg` } }, 45000);
       if (!result.success) throw new Error(result.error || "Gagal upload foto");
       return result.url;
     } catch (e) {
@@ -942,7 +1000,13 @@ export default function App() {
           {isAdmin && (<button onClick={() => setShowSettings(true)} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg text-sm font-bold"><Settings className="w-4 h-4" /><span className="hidden sm:inline">Seting</span></button>)}
           {isAdmin && (<button onClick={() => setShowExportModal(true)} className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg text-sm font-bold"><Download className="w-4 h-4" /><span className="hidden sm:inline">CSV</span></button>)}
           <div className="flex items-center gap-2 bg-slate-900/40 rounded-lg px-3 py-2 text-sm"><span className="font-bold">{currentUser.nama}</span><span className="text-[10px] bg-sky-400 text-sky-950 font-bold px-2 py-0.5 rounded-md">{myCabang || "Admin"}</span></div>
-          <button onClick={() => setDialog({ show: true, type: "confirm", msg: "Keluar aplikasi?", onConfirm: () => { setCurrentUser(null); localStorage.removeItem(SESSION_KEY); closeDialog(); } })} className="bg-red-500 hover:bg-red-600 p-2 rounded-lg"><LogOut className="w-5 h-5" /></button>
+          <button onClick={() => setDialog({ show: true, type: "confirm", msg: "Keluar aplikasi?", onConfirm: () => {
+            setCurrentUser(null);
+            setUsers([]); setSales([]); setExpenses([]); setStockRecords([]); setOwnerNotes([]); setHutangPiutangList([]);
+            localStorage.removeItem(SESSION_KEY);
+            Object.values(LOCAL_KEYS).forEach((k) => localStorage.removeItem(k));
+            closeDialog();
+          } })} className="bg-red-500 hover:bg-red-600 p-2 rounded-lg"><LogOut className="w-5 h-5" /></button>
         </div>
       </header>
 
