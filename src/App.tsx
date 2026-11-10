@@ -935,20 +935,11 @@ export default function App() {
   };
 
   const effectiveFilterCabang = isAdmin ? filterCabang : myCabang;
-  // Daftar pilihan filter pegawai: akun pegawai di depot tsb + nama pegawai yang
-  // tercatat di transaksi depot tsb (supaya data lama/nama berbeda tetap bisa difilter).
-  const pegawaiOptions = useMemo(() => {
-    const sameCabang = (c) => effectiveFilterCabang === "Semua Cabang" || normText(c) === normText(effectiveFilterCabang);
-    const opts = users.filter((u) => normText(u.role) !== "admin" && sameCabang(u.cabang)).map((u) => ({ id: String(u.id), nama: u.nama, username: u.username }));
-    const sudahAda = (val) => opts.some((o) => normText(o.nama) === normText(val) || normText(o.username) === normText(val));
-    [...sales, ...expenses].forEach((r) => {
-      const nama = String(r.pegawai || "").trim();
-      if (!nama || !sameCabang(r.cabang) || sudahAda(nama)) return;
-      if (r.pegawaiId && opts.some((o) => o.id === String(r.pegawaiId))) return;
-      opts.push({ id: "name:" + normText(nama), nama, username: "" });
-    });
-    return opts;
-  }, [users, sales, expenses, effectiveFilterCabang]);
+  // Daftar pilihan filter pegawai: hanya akun pegawai di Manajemen Pengguna
+  // yang cabangnya sama dengan cabang yang dipilih.
+  const pegawaiOptions = useMemo(() => users
+    .filter((u) => normText(u.role) !== "admin" && (effectiveFilterCabang === "Semua Cabang" || normText(u.cabang) === normText(effectiveFilterCabang)))
+    .map((u) => ({ id: String(u.id), nama: u.nama, username: u.username })), [users, effectiveFilterCabang]);
   const cariPegawai = (id) => users.find((x) => String(x.id) === String(id));
   const milikPegawai = (rec, u) => {
     if (!u) return false;
