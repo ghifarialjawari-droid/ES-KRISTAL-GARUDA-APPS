@@ -717,7 +717,7 @@ export default function App() {
   };
 
   const addSale = () => {
-    if (isAdmin && !saleForm.pegawai) return showAlert("Pilih pegawai yang melakukan penjualan ini.", "Data Belum Lengkap", true);
+    if (isAdmin && saleForm.cabang && !pegawaiEfektif(saleForm) && pegawaiByCabang(saleForm.cabang).length > 0) return showAlert("Pilih pegawai yang melakukan penjualan ini.", "Data Belum Lengkap", true);
     const cabangValue = isAdmin ? saleForm.cabang : myCabang;
     if (!cabangValue || !saleForm.jumlah || parseFloat(saleForm.jumlah) <= 0) {
       return showAlert("Harap lengkapi isian Cabang dan Jumlah Qty.", "Data Belum Lengkap", true);
@@ -733,8 +733,8 @@ export default function App() {
       tanggal: saleForm.tanggal,
       cabang: cabangValue,
       customer: saleForm.customer.trim() || "-",
-      pegawai: resolvePegawai(saleForm.pegawai, cabangValue).nama,
-      pegawaiId: resolvePegawai(saleForm.pegawai, cabangValue).id,
+      pegawai: resolvePegawai(pegawaiEfektif(saleForm), cabangValue).nama,
+      pegawaiId: resolvePegawai(pegawaiEfektif(saleForm), cabangValue).id,
       jumlah,
       hargaEs,
       ongkir,
@@ -742,7 +742,7 @@ export default function App() {
       total: totalBayar,
     };
     dbSave("Sales", newSale, "Penjualan");
-    setSaleForm({ ...emptySaleForm, tanggal: saleForm.tanggal, cabang: isAdmin ? saleForm.cabang : "" });
+    setSaleForm({ ...emptySaleForm, tanggal: saleForm.tanggal, cabang: isAdmin ? saleForm.cabang : "", pegawai: isAdmin ? saleForm.pegawai : "" });
   };
 
   // ==========================================
@@ -855,7 +855,7 @@ export default function App() {
   };
 
   const addExpense = async () => {
-    if (isAdmin && !expenseForm.pegawai) return showAlert("Pilih pegawai yang mencatat pengeluaran ini.", "Data Belum Lengkap", true);
+    if (isAdmin && expenseForm.cabang && !pegawaiEfektif(expenseForm) && pegawaiByCabang(expenseForm.cabang).length > 0) return showAlert("Pilih pegawai yang mencatat pengeluaran ini.", "Data Belum Lengkap", true);
     const cabangValue = isAdmin ? expenseForm.cabang : myCabang;
     if (!cabangValue || !expenseForm.kategori || !expenseForm.jumlah || parseFloat(expenseForm.jumlah) <= 0) {
       return showAlert("Harap lengkapi isian Cabang, Kategori, dan Nominal.", "Data Belum Lengkap", true);
@@ -888,14 +888,14 @@ export default function App() {
       tanggal: expenseForm.tanggal, cabang: cabangValue, kategori: expenseForm.kategori,
       jumlah: parseFloat(expenseForm.jumlah) || 0, keterangan: expenseForm.keterangan.trim() || "-",
       fotoBukti: fotoUrl,
-      pegawai: resolvePegawai(expenseForm.pegawai, cabangValue).nama,
-      pegawaiId: resolvePegawai(expenseForm.pegawai, cabangValue).id,
+      pegawai: resolvePegawai(pegawaiEfektif(expenseForm), cabangValue).nama,
+      pegawaiId: resolvePegawai(pegawaiEfektif(expenseForm), cabangValue).id,
     };
     dbSave("Expenses", newExp, "Pengeluaran");
     if (fotoGagalUpload) {
       showToast("Data pengeluaran tersimpan, TAPI foto gagal diupload. Coba edit transaksi ini nanti untuk tambah fotonya lagi.", "error");
     }
-    setExpenseForm({ ...emptyExpenseForm, tanggal: expenseForm.tanggal, cabang: isAdmin ? expenseForm.cabang : "" });
+    setExpenseForm({ ...emptyExpenseForm, tanggal: expenseForm.tanggal, cabang: isAdmin ? expenseForm.cabang : "", pegawai: isAdmin ? expenseForm.pegawai : "" });
     setExpensePhotoFile(null);
     setExpensePhotoPreview("");
   };
@@ -947,12 +947,17 @@ export default function App() {
     const u = users.find((x) => x.role !== "admin" && x.nama === nama && (!cabang || x.cabang === cabang));
     return u ? { id: u.id, nama: u.nama } : { id: "", nama: nama || "" };
   };
+  const pegawaiEfektif = (form) => {
+    if (!isAdmin) return currentUser?.nama || "";
+    const list = pegawaiByCabang(form.cabang);
+    return form.pegawai || (list.length === 1 ? list[0] : "");
+  };
   const pegawaiByCabang = (cabang, current = "") => {
     const list = users.filter((u) => u.role !== "admin" && u.cabang === cabang).map((u) => u.nama);
     return current && !list.includes(current) ? [...list, current] : list;
   };
-  const filteredSales = useMemo(() => sales.filter((s) => getSafeDate(s.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || s.cabang === effectiveFilterCabang) && (!pegawaiAktif || milikPegawai(s, pegawaiAktif))), [sales, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser, users]);
-  const filteredExpenses = useMemo(() => expenses.filter((e) => getSafeDate(e.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || e.cabang === effectiveFilterCabang) && (!pegawaiAktif || milikPegawai(e, pegawaiAktif))), [expenses, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser, users]);
+  const filteredSales = useMemo(() => sales.filter((s) => getSafeDate(s.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || s.cabang === effectiveFilterCabang) && (!pegawaiAktif || milikPegawai(s, pegawaiAktif) || (!isAdmin && !String(s.pegawai || "").trim() && !s.pegawaiId))), [sales, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser, users]);
+  const filteredExpenses = useMemo(() => expenses.filter((e) => getSafeDate(e.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || e.cabang === effectiveFilterCabang) && (!pegawaiAktif || milikPegawai(e, pegawaiAktif) || (!isAdmin && !String(e.pegawai || "").trim() && !e.pegawaiId))), [expenses, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser, users]);
   
   const totalEsTerjual = formatQty(filteredSales.reduce((a, s) => a + parseFloat(s.jumlah || 0), 0));
   const totalPemasukan = filteredSales.reduce((a, s) => a + s.total, 0);
@@ -1341,6 +1346,22 @@ svg text{font-size:14px !important}
   const tabBtnClass = (active) => `flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition ${active ? "border-sky-500 text-sky-600 bg-sky-50" : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50"}`;
   const inputClass = "w-full border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 transition-all bg-white";
   const labelClass = "block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide";
+  // Input pegawai di form (terpisah dari filter atas). Admin hanya perlu memilih
+  // kalau depot punya lebih dari satu pegawai; kalau cuma satu, terisi otomatis.
+  const renderPegawaiInput = (form, setForm) => {
+    const disabledClass = `${inputClass} bg-slate-100 text-slate-500`;
+    if (!isAdmin) return <input type="text" value={currentUser?.nama || ""} disabled className={disabledClass} />;
+    if (!form.cabang) return <input type="text" value="Pilih cabang dulu" disabled className={disabledClass} />;
+    const list = pegawaiByCabang(form.cabang, form.pegawai);
+    if (list.length === 0) return <input type="text" value="Belum ada akun pegawai di depot ini" disabled className={disabledClass} />;
+    if (list.length === 1) return <input type="text" value={list[0]} disabled className={disabledClass} />;
+    return (
+      <select value={form.pegawai} onChange={(e) => setForm({ ...form, pegawai: e.target.value })} className={inputClass}>
+        <option value="">Pilih pegawai...</option>
+        {list.map((p) => (<option key={p} value={p}>{p}</option>))}
+      </select>
+    );
+  };
   const ownerSubTabClass = (active) => `px-4 py-2.5 rounded-xl text-sm font-bold transition ${active ? "bg-sky-500 text-white shadow-sm" : "bg-white text-slate-500 hover:bg-slate-100 border border-slate-200"}`;
 
   return (
@@ -1382,13 +1403,13 @@ svg text{font-size:14px !important}
         {tab === "kasir" && (
           <div className="animate-in fade-in duration-500">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5 items-end">
-              <div><label className={labelClass}>Tanggal</label><input type="date" value={filterDate} onChange={(e) => { const v = e.target.value; setFilterDate(v); setSaleForm((prev) => ({ ...prev, tanggal: v })); setExpenseForm((prev) => ({ ...prev, tanggal: v })); }} className={inputClass} /></div>
+              <div><label className={labelClass}>Tanggal</label><input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Cabang</label>
                 {isAdmin ? (
-                  <select value={filterCabang} onChange={(e) => { const v = e.target.value; setFilterCabang(v); setFilterPegawai("Semua Pegawai"); if (v !== "Semua Cabang") { setSaleForm((prev) => ({ ...prev, cabang: v, pegawai: "" })); setExpenseForm((prev) => ({ ...prev, cabang: v, pegawai: "" })); } }} className={`${inputClass} min-w-[150px]`}><option>Semua Cabang</option>{cabangList.map((c) => (<option key={c}>{c}</option>))}</select>
+                  <select value={filterCabang} onChange={(e) => { const v = e.target.value; setFilterCabang(v); setFilterPegawai("Semua Pegawai"); }} className={`${inputClass} min-w-[150px]`}><option>Semua Cabang</option>{cabangList.map((c) => (<option key={c}>{c}</option>))}</select>
                 ) : (<div className={`${inputClass} bg-slate-100 text-slate-500`}>{myCabang}</div>)}
               </div>
-              {isAdmin && (
+              {isAdmin && filterCabang !== "Semua Cabang" && pegawaiOptions.length > 1 && (
                 <div><label className={labelClass}>Pegawai</label>
                   <select value={filterPegawai} onChange={(e) => setFilterPegawai(e.target.value)} className={`${inputClass} min-w-[150px]`}><option>Semua Pegawai</option>{pegawaiOptions.map((p) => (<option key={p.id} value={p.id}>{p.nama}</option>))}</select>
                 </div>
@@ -1448,16 +1469,16 @@ svg text{font-size:14px !important}
                         </div>
                       )}
                       <div className="grid grid-cols-2 gap-4">
-                        <div><label className={labelClass}>Tanggal</label><input type="date" value={saleForm.tanggal} onChange={(e) => { const v = e.target.value; setSaleForm({ ...saleForm, tanggal: v }); setFilterDate(v); setExpenseForm((prev) => ({ ...prev, tanggal: v })); }} className={inputClass} /></div>
+                        <div><label className={labelClass}>Tanggal</label><input type="date" value={saleForm.tanggal} onChange={(e) => { const v = e.target.value; setSaleForm({ ...saleForm, tanggal: v }); setExpenseForm((prev) => ({ ...prev, tanggal: v })); }} className={inputClass} /></div>
                         <div><label className={labelClass}>Cabang</label>
                           {isAdmin ? (
-                            <select value={saleForm.cabang} onChange={(e) => handleCabangSelect(e.target.value, saleForm, setSaleForm, setFilterCabang)} className={inputClass}>
+                            <select value={saleForm.cabang} onChange={(e) => handleCabangSelect(e.target.value, saleForm, setSaleForm)} className={inputClass}>
                               <option value="">Pilih...</option>{cabangList.map((c) => (<option key={c} value={c}>{c}</option>))}<option value="__new__">+ Cabang Baru</option>
                             </select>
                           ) : (<input type="text" value={myCabang} disabled className={`${inputClass} bg-slate-100 text-slate-400`} />)}
                         </div>
                       </div>
-                      <div><label className={labelClass}>Pegawai</label>{isAdmin ? (<select value={saleForm.pegawai} onChange={(e) => setSaleForm({ ...saleForm, pegawai: e.target.value })} className={inputClass}><option value="">Pilih pegawai...</option>{pegawaiByCabang(saleForm.cabang, saleForm.pegawai).map((p) => (<option key={p} value={p}>{p}</option>))}</select>) : (<input type="text" value={currentUser?.nama || ""} disabled className={`${inputClass} bg-slate-100 text-slate-500`} />)}</div>
+                      <div><label className={labelClass}>Pegawai</label>{renderPegawaiInput(saleForm, setSaleForm)}</div>
                       <div><label className={labelClass}>Customer</label><input type="text" placeholder="Mis: Warung Bu Ani" value={saleForm.customer} onChange={(e) => setSaleForm({ ...saleForm, customer: e.target.value })} className={inputClass} /></div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -1486,10 +1507,10 @@ svg text{font-size:14px !important}
                         </div>
                       )}
                       <div className="grid grid-cols-2 gap-4">
-                        <div><label className={labelClass}>Tanggal</label><input type="date" value={expenseForm.tanggal} onChange={(e) => { const v = e.target.value; setExpenseForm({ ...expenseForm, tanggal: v }); setFilterDate(v); setSaleForm((prev) => ({ ...prev, tanggal: v })); }} className={inputClass} /></div>
+                        <div><label className={labelClass}>Tanggal</label><input type="date" value={expenseForm.tanggal} onChange={(e) => { const v = e.target.value; setExpenseForm({ ...expenseForm, tanggal: v }); setSaleForm((prev) => ({ ...prev, tanggal: v })); }} className={inputClass} /></div>
                         <div><label className={labelClass}>Cabang</label>
                           {isAdmin ? (
-                            <select value={expenseForm.cabang} onChange={(e) => handleCabangSelect(e.target.value, expenseForm, setExpenseForm, setFilterCabang)} className={inputClass}>
+                            <select value={expenseForm.cabang} onChange={(e) => handleCabangSelect(e.target.value, expenseForm, setExpenseForm)} className={inputClass}>
                               <option value="">Pilih...</option>{cabangList.map((c) => (<option key={c} value={c}>{c}</option>))}<option value="__new__">+ Cabang Baru</option>
                             </select>
                           ) : (<input value={myCabang} disabled className={`${inputClass} bg-slate-100`} />)}
@@ -1502,7 +1523,7 @@ svg text{font-size:14px !important}
                       </div>
                       <div><label className={labelClass}>Nominal (Rp)</label><input type="number" value={expenseForm.jumlah} onChange={(e) => setExpenseForm({ ...expenseForm, jumlah: e.target.value })} className={inputClass} /></div>
                       <div><label className={labelClass}>Keterangan</label><input type="text" value={expenseForm.keterangan} onChange={(e) => setExpenseForm({ ...expenseForm, keterangan: e.target.value })} className={inputClass} /></div>
-                      <div><label className={labelClass}>Pegawai</label>{isAdmin ? (<select value={expenseForm.pegawai} onChange={(e) => setExpenseForm({ ...expenseForm, pegawai: e.target.value })} className={inputClass}><option value="">Pilih pegawai...</option>{pegawaiByCabang(expenseForm.cabang, expenseForm.pegawai).map((p) => (<option key={p} value={p}>{p}</option>))}</select>) : (<input type="text" value={currentUser?.nama || ""} disabled className={`${inputClass} bg-slate-100 text-slate-500`} />)}</div>
+                      <div><label className={labelClass}>Pegawai</label>{renderPegawaiInput(expenseForm, setExpenseForm)}</div>
                       <div>
                         <label className={labelClass}>Foto Bukti <span className="normal-case font-medium text-slate-400">(opsional)</span></label>
                         {(expensePhotoPreview || expenseForm.fotoBukti) ? (
