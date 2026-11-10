@@ -733,7 +733,8 @@ export default function App() {
       tanggal: saleForm.tanggal,
       cabang: cabangValue,
       customer: saleForm.customer.trim() || "-",
-      pegawai: isAdmin ? saleForm.pegawai : currentUser.nama,
+      pegawai: resolvePegawai(saleForm.pegawai, cabangValue).nama,
+      pegawaiId: resolvePegawai(saleForm.pegawai, cabangValue).id,
       jumlah,
       hargaEs,
       ongkir,
@@ -782,7 +783,7 @@ export default function App() {
       const hargaEs = parseFloat(draft.hargaEs) || 0;
       const ongkir = parseFloat(draft.ongkir) || 0;
       const diskon = parseFloat(draft.diskon) || 0;
-      item = { ...draft, cabang: cabangValue, customer: String(draft.customer || "").trim() || "-", jumlah: formatQty(draft.jumlah), hargaEs, ongkir, diskon, total: hargaEs + ongkir - diskon };
+      item = { ...draft, pegawai: resolvePegawai(draft.pegawai, cabangValue).nama, pegawaiId: resolvePegawai(draft.pegawai, cabangValue).id || draft.pegawaiId || "", cabang: cabangValue, customer: String(draft.customer || "").trim() || "-", jumlah: formatQty(draft.jumlah), hargaEs, ongkir, diskon, total: hargaEs + ongkir - diskon };
       label = "Penjualan";
     } else if (table === "Expenses") {
       if (isAdmin && !draft.pegawai) return showAlert("Pilih pegawai untuk pengeluaran ini.", "Data Belum Lengkap", true);
@@ -798,7 +799,7 @@ export default function App() {
         }
         setIsUploadingPhoto(false);
       }
-      item = { ...draft, cabang: cabangValue, jumlah: parseFloat(draft.jumlah) || 0, keterangan: String(draft.keterangan || "").trim() || "-", fotoBukti: fotoUrl };
+      item = { ...draft, pegawai: resolvePegawai(draft.pegawai, cabangValue).nama, pegawaiId: resolvePegawai(draft.pegawai, cabangValue).id || draft.pegawaiId || "", cabang: cabangValue, jumlah: parseFloat(draft.jumlah) || 0, keterangan: String(draft.keterangan || "").trim() || "-", fotoBukti: fotoUrl };
       label = "Pengeluaran";
     } else if (table === "Stocks") {
       const cabangValue = isAdmin ? draft.cabang : myCabang;
@@ -887,7 +888,8 @@ export default function App() {
       tanggal: expenseForm.tanggal, cabang: cabangValue, kategori: expenseForm.kategori,
       jumlah: parseFloat(expenseForm.jumlah) || 0, keterangan: expenseForm.keterangan.trim() || "-",
       fotoBukti: fotoUrl,
-      pegawai: isAdmin ? expenseForm.pegawai : currentUser.nama,
+      pegawai: resolvePegawai(expenseForm.pegawai, cabangValue).nama,
+      pegawaiId: resolvePegawai(expenseForm.pegawai, cabangValue).id,
     };
     dbSave("Expenses", newExp, "Pengeluaran");
     if (fotoGagalUpload) {
@@ -931,13 +933,26 @@ export default function App() {
   };
 
   const effectiveFilterCabang = isAdmin ? filterCabang : myCabang;
-  const pegawaiOptions = useMemo(() => users.filter((u) => u.role !== "admin" && (effectiveFilterCabang === "Semua Cabang" || u.cabang === effectiveFilterCabang)).map((u) => u.nama), [users, effectiveFilterCabang]);
+  const pegawaiOptions = useMemo(() => users.filter((u) => u.role !== "admin" && (effectiveFilterCabang === "Semua Cabang" || u.cabang === effectiveFilterCabang)).map((u) => ({ id: u.id, nama: u.nama })), [users, effectiveFilterCabang]);
+  const cariPegawai = (id) => users.find((x) => String(x.id) === String(id));
+  const milikPegawai = (rec, u) => {
+    if (!u) return false;
+    if (rec.pegawaiId) return String(rec.pegawaiId) === String(u.id);
+    const nilai = String(rec.pegawai || "").trim().toLowerCase();
+    return nilai !== "" && (nilai === String(u.nama || "").trim().toLowerCase() || nilai === String(u.username || "").trim().toLowerCase());
+  };
+  const pegawaiAktif = isAdmin ? (filterPegawai === "Semua Pegawai" ? null : (cariPegawai(filterPegawai) || { id: "__none__", nama: "", username: "" })) : currentUser;
+  const resolvePegawai = (nama, cabang) => {
+    if (!isAdmin) return { id: currentUser?.id || "", nama: currentUser?.nama || "" };
+    const u = users.find((x) => x.role !== "admin" && x.nama === nama && (!cabang || x.cabang === cabang));
+    return u ? { id: u.id, nama: u.nama } : { id: "", nama: nama || "" };
+  };
   const pegawaiByCabang = (cabang, current = "") => {
     const list = users.filter((u) => u.role !== "admin" && u.cabang === cabang).map((u) => u.nama);
     return current && !list.includes(current) ? [...list, current] : list;
   };
-  const filteredSales = useMemo(() => sales.filter((s) => getSafeDate(s.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || s.cabang === effectiveFilterCabang) && (isAdmin ? (filterPegawai === "Semua Pegawai" || s.pegawai === filterPegawai) : s.pegawai === currentUser?.nama)), [sales, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser]);
-  const filteredExpenses = useMemo(() => expenses.filter((e) => getSafeDate(e.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || e.cabang === effectiveFilterCabang) && (isAdmin ? (filterPegawai === "Semua Pegawai" || e.pegawai === filterPegawai) : e.pegawai === currentUser?.nama)), [expenses, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser]);
+  const filteredSales = useMemo(() => sales.filter((s) => getSafeDate(s.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || s.cabang === effectiveFilterCabang) && (!pegawaiAktif || milikPegawai(s, pegawaiAktif))), [sales, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser, users]);
+  const filteredExpenses = useMemo(() => expenses.filter((e) => getSafeDate(e.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || e.cabang === effectiveFilterCabang) && (!pegawaiAktif || milikPegawai(e, pegawaiAktif))), [expenses, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser, users]);
   
   const totalEsTerjual = formatQty(filteredSales.reduce((a, s) => a + parseFloat(s.jumlah || 0), 0));
   const totalPemasukan = filteredSales.reduce((a, s) => a + s.total, 0);
@@ -949,7 +964,7 @@ export default function App() {
   const filteredStock = computedStock.filter((r) => getSafeDate(r.tanggal) === stockFilterDate && (effectiveStockCabang === "Semua Cabang" || r.cabang === effectiveStockCabang));
 
   const monthlySummary = useMemo(() => {
-    const monthSales = sales.filter((s) => getSafeDate(s.tanggal).startsWith(reportMonth) && (reportPegawai === "Semua Pegawai" || s.pegawai === reportPegawai));
+    const monthSales = sales.filter((s) => getSafeDate(s.tanggal).startsWith(reportMonth) && (reportPegawai === "Semua Pegawai" || milikPegawai(s, cariPegawai(reportPegawai) || { id: "__none__", nama: "", username: "" })));
     return cabangList.map((cabang) => {
       const data = monthSales.filter((s) => s.cabang === cabang);
       return {
@@ -957,7 +972,7 @@ export default function App() {
         customer: new Set(data.map((s) => s.customer)).size, pendapatan: data.reduce((a, s) => a + s.total, 0),
       };
     });
-  }, [sales, reportMonth, cabangList, reportPegawai]);
+  }, [sales, reportMonth, cabangList, reportPegawai, users]);
 
   const totalRingkasan = monthlySummary.reduce((acc, r) => ({ esTerjual: formatQty(acc.esTerjual + r.esTerjual), customer: acc.customer + r.customer, pendapatan: acc.pendapatan + r.pendapatan }), { esTerjual: 0, customer: 0, pendapatan: 0 });
 
@@ -1375,7 +1390,7 @@ svg text{font-size:14px !important}
               </div>
               {isAdmin && (
                 <div><label className={labelClass}>Pegawai</label>
-                  <select value={filterPegawai} onChange={(e) => setFilterPegawai(e.target.value)} className={`${inputClass} min-w-[150px]`}><option>Semua Pegawai</option>{pegawaiOptions.map((p) => (<option key={p}>{p}</option>))}</select>
+                  <select value={filterPegawai} onChange={(e) => setFilterPegawai(e.target.value)} className={`${inputClass} min-w-[150px]`}><option>Semua Pegawai</option>{pegawaiOptions.map((p) => (<option key={p.id} value={p.id}>{p.nama}</option>))}</select>
                 </div>
               )}
               <button onClick={() => loadData()} className="ml-auto bg-sky-100 text-sky-700 hover:bg-sky-200 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 text-sm">
@@ -1741,12 +1756,12 @@ svg text{font-size:14px !important}
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5">
               <div><label className={labelClass}>Bulan</label><input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Pegawai</label><select value={reportPegawai} onChange={(e) => setReportPegawai(e.target.value)} className={`${inputClass} min-w-[150px]`}><option>Semua Pegawai</option>{users.filter((u) => u.role !== "admin").map((u) => (<option key={u.id}>{u.nama}</option>))}</select></div>
+              <div><label className={labelClass}>Pegawai</label><select value={reportPegawai} onChange={(e) => setReportPegawai(e.target.value)} className={`${inputClass} min-w-[150px]`}><option value="Semua Pegawai">Semua Pegawai</option>{users.filter((u) => u.role !== "admin").map((u) => (<option key={u.id} value={u.id}>{u.nama}</option>))}</select></div>
               <button onClick={downloadLaporanHtml} className="ml-auto mt-auto bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex gap-2"><Download className="w-4 h-4" /> Download PDF Laporan</button>
               <button onClick={() => window.print()} className="mt-auto bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex gap-2"><Printer className="w-4 h-4" /> Cetak PDF</button>
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-              <div className="p-5 border-b border-slate-200 bg-slate-50"><h3 className="font-black text-lg">Ringkasan Omset - {reportMonth}{reportPegawai !== "Semua Pegawai" ? ` (${reportPegawai})` : ""}</h3></div>
+              <div className="p-5 border-b border-slate-200 bg-slate-50"><h3 className="font-black text-lg">Ringkasan Omset - {reportMonth}{reportPegawai !== "Semua Pegawai" ? ` (${cariPegawai(reportPegawai)?.nama || ""})` : ""}</h3></div>
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-100 border-b border-slate-200">
                   <tr className="text-[11px] uppercase text-slate-500"><th className="px-5 py-3">Cabang</th><th className="px-5 py-3">Es Terjual</th><th className="px-5 py-3">Customer</th><th className="px-5 py-3">Pendapatan</th></tr>
