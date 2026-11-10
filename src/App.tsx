@@ -73,6 +73,13 @@ const formatQty = (n) => Number(parseFloat(n || 0).toFixed(2));
 // Normalisasi teks untuk perbandingan (abaikan spasi & huruf besar-kecil).
 const normText = (v) => String(v ?? "").trim().toLowerCase();
 
+// Nama pegawai lama di transaksi (huruf kecil) -> ID akun di Manajemen Pengguna.
+// Dipakai supaya transaksi lama tetap masuk ke akun yang benar walau namanya beda.
+const ALIAS_PEGAWAI = {
+  "es kristal garuda tasik": "u_1784275876728",
+  "es kristal garuda tasikmalaya": "u_1784275876728",
+};
+
 // Mengecilkan ukuran foto (resize + kompres ke JPEG) sebelum dikirim ke server,
 // supaya upload dari HP tetap cepat meski foto aslinya beresolusi besar.
 function compressImageFile(file, maxDimension = 640, quality = 0.4, targetMaxBytes = 150000) {
@@ -941,11 +948,23 @@ export default function App() {
     .filter((u) => normText(u.role) !== "admin" && (effectiveFilterCabang === "Semua Cabang" || normText(u.cabang) === normText(effectiveFilterCabang)))
     .map((u) => ({ id: String(u.id), nama: u.nama, username: u.username })), [users, effectiveFilterCabang]);
   const cariPegawai = (id) => users.find((x) => String(x.id) === String(id));
+  // Cari akun pemilik transaksi: lewat pegawaiId, lalu nama/username akun,
+  // lalu ALIAS_PEGAWAI (nama lama yang sudah tidak dipakai lagi).
+  const pemilikTransaksi = (rec) => {
+    if (rec.pegawaiId) { const byId = cariPegawai(rec.pegawaiId); if (byId) return byId; }
+    const nilai = normText(rec.pegawai);
+    if (!nilai) return null;
+    const cocok = (x) => normText(x.role) !== "admin" && (normText(x.nama) === nilai || normText(x.username) === nilai);
+    const byName = users.find((x) => cocok(x) && normText(x.cabang) === normText(rec.cabang)) || users.find(cocok);
+    if (byName) return byName;
+    return ALIAS_PEGAWAI[nilai] ? cariPegawai(ALIAS_PEGAWAI[nilai]) || null : null;
+  };
   const milikPegawai = (rec, u) => {
     if (!u) return false;
-    if (rec.pegawaiId && String(rec.pegawaiId) === String(u.id)) return true;
-    const nilai = String(rec.pegawai || "").trim().toLowerCase();
-    return nilai !== "" && (nilai === String(u.nama || "").trim().toLowerCase() || nilai === String(u.username || "").trim().toLowerCase());
+    const pemilik = pemilikTransaksi(rec);
+    if (pemilik) return String(pemilik.id) === String(u.id);
+    const nilai = normText(rec.pegawai);
+    return nilai !== "" && (nilai === normText(u.nama) || nilai === normText(u.username));
   };
   const pegawaiAktif = !isAdmin
     ? currentUser
@@ -1635,7 +1654,7 @@ svg text{font-size:14px !important}
                         )
                       ) : (
                         <tr key={item.id} className="hover:bg-slate-50">
-                          <td className="px-5 py-4 font-bold text-sky-600">{item.cabang}<div className="text-[11px] font-medium text-slate-500">{(item.pegawaiId && cariPegawai(item.pegawaiId)?.nama) || item.pegawai || "-"}</div></td>
+                          <td className="px-5 py-4 font-bold text-sky-600">{item.cabang}<div className="text-[11px] font-medium text-slate-500">{pemilikTransaksi(item)?.nama || item.pegawai || "-"}</div></td>
                           <td className="px-5 py-4 font-medium">
                             {histTab === "pemasukan" ? item.customer : item.kategori}
                             {histTab === "pemasukan" && item.diskon > 0 && <div className="text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded inline-block mt-1">Diskon: {formatRupiah(item.diskon)}</div>}
