@@ -1133,8 +1133,29 @@ tr.total td{background:#1e293b;color:#fff;font-weight:700}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 10px}
 .legend i:first-child{margin-left:0}
 svg{display:block;width:100%;height:auto}
-@page{size:A4;margin:12mm}
-@media print{body{padding:0;background:#fff}.grid{grid-template-columns:1fr 1fr}.card{break-inside:avoid}}
+@page{size:A4 landscape;margin:10mm}
+@media print{
+*{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{padding:0;background:#fff;font-size:13px}
+h1{font-size:20px}
+h2{font-size:15px;margin:14px 0 8px}
+.sub{margin-bottom:10px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.kpi{padding:10px}
+.kpi b{font-size:15px}
+.wrap{overflow:visible}
+table{table-layout:fixed;font-size:12px}
+th,td{white-space:normal;padding:6px 7px}
+th{font-size:10.5px}
+td.depot,th:first-child{width:16%}
+.grid{grid-template-columns:1fr 1fr;gap:10px}
+.card{padding:10px;break-inside:avoid}
+.mini{font-size:11px}
+.legend{font-size:10px}
+.card svg{width:100%;height:auto}
+svg text{font-size:14px !important}
+.brk{break-before:page;page-break-before:always}
+}
 </style></head><body>
 <h1>Laporan Es Kristal Garuda</h1>
 <div class="sub">Periode: ${esc(bulan)} &middot; Dibuat: ${esc(new Date().toLocaleString("id-ID"))}</div>
@@ -1145,7 +1166,7 @@ svg{display:block;width:100%;height:auto}
 <thead><tr><th>Depot</th><th>Pendapatan</th><th>Es Terjual</th><th>Customer</th><th>Peng. Pegawai</th><th>Peng. Kas Owner</th><th>Total Pengeluaran</th><th>Laba Bersih</th><th>Susut (Bks)</th><th>Loss (Rp)</th></tr></thead>
 <tbody>${perDepot.map((d) => baris(d)).join("")}${biayaUmum > 0 ? baris(umumRow) : ""}${baris(totalRow, "total")}</tbody>
 </table></div>
-<h2>Grafik per Depot (Harian)</h2>
+<h2 class="brk">Grafik per Depot (Harian)</h2>
 <div class="grid">${kartuDepot}</div>
 </body></html>`;
 
