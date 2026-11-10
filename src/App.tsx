@@ -422,6 +422,7 @@ export default function App() {
   // Filter sumber pengeluaran untuk pie chart Laporan: semua | pegawai | owner
   const [pieSource, setPieSource] = useState("semua");
   const [pieCabang, setPieCabang] = useState("Semua Cabang");
+  const [reportPegawai, setReportPegawai] = useState("Semua Pegawai");
   
   const [reportMonth, setReportMonth] = useState(currentMonthStr());
 
@@ -940,7 +941,7 @@ export default function App() {
   const filteredStock = computedStock.filter((r) => getSafeDate(r.tanggal) === stockFilterDate && (effectiveStockCabang === "Semua Cabang" || r.cabang === effectiveStockCabang));
 
   const monthlySummary = useMemo(() => {
-    const monthSales = sales.filter((s) => getSafeDate(s.tanggal).startsWith(reportMonth));
+    const monthSales = sales.filter((s) => getSafeDate(s.tanggal).startsWith(reportMonth) && (reportPegawai === "Semua Pegawai" || s.pegawai === reportPegawai));
     return cabangList.map((cabang) => {
       const data = monthSales.filter((s) => s.cabang === cabang);
       return {
@@ -948,7 +949,7 @@ export default function App() {
         customer: new Set(data.map((s) => s.customer)).size, pendapatan: data.reduce((a, s) => a + s.total, 0),
       };
     });
-  }, [sales, reportMonth, cabangList]);
+  }, [sales, reportMonth, cabangList, reportPegawai]);
 
   const totalRingkasan = monthlySummary.reduce((acc, r) => ({ esTerjual: formatQty(acc.esTerjual + r.esTerjual), customer: acc.customer + r.customer, pendapatan: acc.pendapatan + r.pendapatan }), { esTerjual: 0, customer: 0, pendapatan: 0 });
 
@@ -1433,6 +1434,7 @@ svg text{font-size:14px !important}
                           ) : (<input type="text" value={myCabang} disabled className={`${inputClass} bg-slate-100 text-slate-400`} />)}
                         </div>
                       </div>
+                      <div><label className={labelClass}>Pegawai</label><input type="text" value={currentUser?.nama || ""} disabled className={`${inputClass} bg-slate-100 text-slate-500`} /></div>
                       <div><label className={labelClass}>Customer</label><input type="text" placeholder="Mis: Warung Bu Ani" value={saleForm.customer} onChange={(e) => setSaleForm({ ...saleForm, customer: e.target.value })} className={inputClass} /></div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -1477,6 +1479,7 @@ svg text{font-size:14px !important}
                       </div>
                       <div><label className={labelClass}>Nominal (Rp)</label><input type="number" value={expenseForm.jumlah} onChange={(e) => setExpenseForm({ ...expenseForm, jumlah: e.target.value })} className={inputClass} /></div>
                       <div><label className={labelClass}>Keterangan</label><input type="text" value={expenseForm.keterangan} onChange={(e) => setExpenseForm({ ...expenseForm, keterangan: e.target.value })} className={inputClass} /></div>
+                      <div><label className={labelClass}>Pegawai</label><input type="text" value={currentUser?.nama || ""} disabled className={`${inputClass} bg-slate-100 text-slate-500`} /></div>
                       <div>
                         <label className={labelClass}>Foto Bukti <span className="normal-case font-medium text-slate-400">(opsional)</span></label>
                         {(expensePhotoPreview || expenseForm.fotoBukti) ? (
@@ -1728,11 +1731,12 @@ svg text{font-size:14px !important}
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5">
               <div><label className={labelClass}>Bulan</label><input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Pegawai</label><select value={reportPegawai} onChange={(e) => setReportPegawai(e.target.value)} className={`${inputClass} min-w-[150px]`}><option>Semua Pegawai</option>{users.filter((u) => u.role !== "admin").map((u) => (<option key={u.id}>{u.nama}</option>))}</select></div>
               <button onClick={downloadLaporanHtml} className="ml-auto mt-auto bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex gap-2"><Download className="w-4 h-4" /> Download PDF Laporan</button>
               <button onClick={() => window.print()} className="mt-auto bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex gap-2"><Printer className="w-4 h-4" /> Cetak PDF</button>
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-              <div className="p-5 border-b border-slate-200 bg-slate-50"><h3 className="font-black text-lg">Ringkasan Omset - {reportMonth}</h3></div>
+              <div className="p-5 border-b border-slate-200 bg-slate-50"><h3 className="font-black text-lg">Ringkasan Omset - {reportMonth}{reportPegawai !== "Semua Pegawai" ? ` (${reportPegawai})` : ""}</h3></div>
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-100 border-b border-slate-200">
                   <tr className="text-[11px] uppercase text-slate-500"><th className="px-5 py-3">Cabang</th><th className="px-5 py-3">Es Terjual</th><th className="px-5 py-3">Customer</th><th className="px-5 py-3">Pendapatan</th></tr>
