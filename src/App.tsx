@@ -401,6 +401,7 @@ export default function App() {
 
   const [filterDate, setFilterDate] = useState(todayStr());
   const [filterCabang, setFilterCabang] = useState("Semua Cabang");
+  const [filterPegawai, setFilterPegawai] = useState("Semua Pegawai");
   const [formTab, setFormTab] = useState("penjualan");
   const [histTab, setHistTab] = useState("pemasukan");
 
@@ -729,6 +730,7 @@ export default function App() {
       tanggal: saleForm.tanggal,
       cabang: cabangValue,
       customer: saleForm.customer.trim() || "-",
+      pegawai: currentUser.nama,
       jumlah,
       hargaEs,
       ongkir,
@@ -879,6 +881,7 @@ export default function App() {
       tanggal: expenseForm.tanggal, cabang: cabangValue, kategori: expenseForm.kategori,
       jumlah: parseFloat(expenseForm.jumlah) || 0, keterangan: expenseForm.keterangan.trim() || "-",
       fotoBukti: fotoUrl,
+      pegawai: currentUser.nama,
     };
     dbSave("Expenses", newExp, "Pengeluaran");
     if (fotoGagalUpload) {
@@ -922,8 +925,9 @@ export default function App() {
   };
 
   const effectiveFilterCabang = isAdmin ? filterCabang : myCabang;
-  const filteredSales = useMemo(() => sales.filter((s) => getSafeDate(s.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || s.cabang === effectiveFilterCabang)), [sales, filterDate, effectiveFilterCabang]);
-  const filteredExpenses = useMemo(() => expenses.filter((e) => getSafeDate(e.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || e.cabang === effectiveFilterCabang)), [expenses, filterDate, effectiveFilterCabang]);
+  const pegawaiOptions = useMemo(() => users.filter((u) => u.role !== "admin" && (effectiveFilterCabang === "Semua Cabang" || u.cabang === effectiveFilterCabang)).map((u) => u.nama), [users, effectiveFilterCabang]);
+  const filteredSales = useMemo(() => sales.filter((s) => getSafeDate(s.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || s.cabang === effectiveFilterCabang) && (isAdmin ? (filterPegawai === "Semua Pegawai" || s.pegawai === filterPegawai) : s.pegawai === currentUser?.nama)), [sales, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser]);
+  const filteredExpenses = useMemo(() => expenses.filter((e) => getSafeDate(e.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || e.cabang === effectiveFilterCabang) && (isAdmin ? (filterPegawai === "Semua Pegawai" || e.pegawai === filterPegawai) : e.pegawai === currentUser?.nama)), [expenses, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser]);
   
   const totalEsTerjual = formatQty(filteredSales.reduce((a, s) => a + parseFloat(s.jumlah || 0), 0));
   const totalPemasukan = filteredSales.reduce((a, s) => a + s.total, 0);
@@ -1176,9 +1180,14 @@ export default function App() {
               <div><label className={labelClass}>Tanggal</label><input type="date" value={filterDate} onChange={(e) => { const v = e.target.value; setFilterDate(v); setSaleForm((prev) => ({ ...prev, tanggal: v })); setExpenseForm((prev) => ({ ...prev, tanggal: v })); }} className={inputClass} /></div>
               <div><label className={labelClass}>Cabang</label>
                 {isAdmin ? (
-                  <select value={filterCabang} onChange={(e) => { const v = e.target.value; setFilterCabang(v); if (v !== "Semua Cabang") { setSaleForm((prev) => ({ ...prev, cabang: v })); setExpenseForm((prev) => ({ ...prev, cabang: v })); } }} className={`${inputClass} min-w-[150px]`}><option>Semua Cabang</option>{cabangList.map((c) => (<option key={c}>{c}</option>))}</select>
+                  <select value={filterCabang} onChange={(e) => { const v = e.target.value; setFilterCabang(v); setFilterPegawai("Semua Pegawai"); if (v !== "Semua Cabang") { setSaleForm((prev) => ({ ...prev, cabang: v })); setExpenseForm((prev) => ({ ...prev, cabang: v })); } }} className={`${inputClass} min-w-[150px]`}><option>Semua Cabang</option>{cabangList.map((c) => (<option key={c}>{c}</option>))}</select>
                 ) : (<div className={`${inputClass} bg-slate-100 text-slate-500`}>{myCabang}</div>)}
               </div>
+              {isAdmin && (
+                <div><label className={labelClass}>Pegawai</label>
+                  <select value={filterPegawai} onChange={(e) => setFilterPegawai(e.target.value)} className={`${inputClass} min-w-[150px]`}><option>Semua Pegawai</option>{pegawaiOptions.map((p) => (<option key={p}>{p}</option>))}</select>
+                </div>
+              )}
               <button onClick={() => loadData()} className="ml-auto bg-sky-100 text-sky-700 hover:bg-sky-200 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 text-sm">
                 <RefreshCw className={`w-4 h-4 ${appLoading ? "animate-spin" : ""}`} /> Refresh Data
               </button>
