@@ -70,6 +70,8 @@ const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(
 const currentMonthStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
 const formatRupiah = (n) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
 const formatQty = (n) => Number(parseFloat(n || 0).toFixed(2));
+// Normalisasi teks untuk perbandingan (abaikan spasi & huruf besar-kecil).
+const normText = (v) => String(v ?? "").trim().toLowerCase();
 
 // Mengecilkan ukuran foto (resize + kompres ke JPEG) sebelum dikirim ke server,
 // supaya upload dari HP tetap cepat meski foto aslinya beresolusi besar.
@@ -933,18 +935,37 @@ export default function App() {
   };
 
   const effectiveFilterCabang = isAdmin ? filterCabang : myCabang;
-  const pegawaiOptions = useMemo(() => users.filter((u) => u.role !== "admin" && (effectiveFilterCabang === "Semua Cabang" || u.cabang === effectiveFilterCabang)).map((u) => ({ id: u.id, nama: u.nama })), [users, effectiveFilterCabang]);
+  // Daftar pilihan filter pegawai: akun pegawai di depot tsb + nama pegawai yang
+  // tercatat di transaksi depot tsb (supaya data lama/nama berbeda tetap bisa difilter).
+  const pegawaiOptions = useMemo(() => {
+    const sameCabang = (c) => effectiveFilterCabang === "Semua Cabang" || normText(c) === normText(effectiveFilterCabang);
+    const opts = users.filter((u) => normText(u.role) !== "admin" && sameCabang(u.cabang)).map((u) => ({ id: String(u.id), nama: u.nama, username: u.username }));
+    const sudahAda = (val) => opts.some((o) => normText(o.nama) === normText(val) || normText(o.username) === normText(val));
+    [...sales, ...expenses].forEach((r) => {
+      const nama = String(r.pegawai || "").trim();
+      if (!nama || !sameCabang(r.cabang) || sudahAda(nama)) return;
+      if (r.pegawaiId && opts.some((o) => o.id === String(r.pegawaiId))) return;
+      opts.push({ id: "name:" + normText(nama), nama, username: "" });
+    });
+    return opts;
+  }, [users, sales, expenses, effectiveFilterCabang]);
   const cariPegawai = (id) => users.find((x) => String(x.id) === String(id));
   const milikPegawai = (rec, u) => {
     if (!u) return false;
-    if (rec.pegawaiId) return String(rec.pegawaiId) === String(u.id);
+    if (rec.pegawaiId && String(rec.pegawaiId) === String(u.id)) return true;
     const nilai = String(rec.pegawai || "").trim().toLowerCase();
     return nilai !== "" && (nilai === String(u.nama || "").trim().toLowerCase() || nilai === String(u.username || "").trim().toLowerCase());
   };
-  const pegawaiAktif = isAdmin ? (filterPegawai === "Semua Pegawai" ? null : (cariPegawai(filterPegawai) || { id: "__none__", nama: "", username: "" })) : currentUser;
+  const pegawaiAktif = !isAdmin
+    ? currentUser
+    : filterPegawai === "Semua Pegawai"
+      ? null
+      : String(filterPegawai).startsWith("name:")
+        ? { id: "__none__", nama: String(filterPegawai).slice(5), username: "" }
+        : (cariPegawai(filterPegawai) || { id: "__none__", nama: "", username: "" });
   const resolvePegawai = (nama, cabang) => {
     if (!isAdmin) return { id: currentUser?.id || "", nama: currentUser?.nama || "" };
-    const u = users.find((x) => x.role !== "admin" && x.nama === nama && (!cabang || x.cabang === cabang));
+    const u = users.find((x) => normText(x.role) !== "admin" && normText(x.nama) === normText(nama) && (!cabang || normText(x.cabang) === normText(cabang)));
     return u ? { id: u.id, nama: u.nama } : { id: "", nama: nama || "" };
   };
   const pegawaiEfektif = (form) => {
@@ -953,11 +974,11 @@ export default function App() {
     return form.pegawai || (list.length === 1 ? list[0] : "");
   };
   const pegawaiByCabang = (cabang, current = "") => {
-    const list = users.filter((u) => u.role !== "admin" && u.cabang === cabang).map((u) => u.nama);
+    const list = users.filter((u) => normText(u.role) !== "admin" && normText(u.cabang) === normText(cabang)).map((u) => u.nama);
     return current && !list.includes(current) ? [...list, current] : list;
   };
-  const filteredSales = useMemo(() => sales.filter((s) => getSafeDate(s.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || s.cabang === effectiveFilterCabang) && (!pegawaiAktif || milikPegawai(s, pegawaiAktif) || (!isAdmin && !String(s.pegawai || "").trim() && !s.pegawaiId))), [sales, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser, users]);
-  const filteredExpenses = useMemo(() => expenses.filter((e) => getSafeDate(e.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || e.cabang === effectiveFilterCabang) && (!pegawaiAktif || milikPegawai(e, pegawaiAktif) || (!isAdmin && !String(e.pegawai || "").trim() && !e.pegawaiId))), [expenses, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser, users]);
+  const filteredSales = useMemo(() => sales.filter((s) => getSafeDate(s.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || normText(s.cabang) === normText(effectiveFilterCabang)) && (!pegawaiAktif || milikPegawai(s, pegawaiAktif) || (!isAdmin && !String(s.pegawai || "").trim() && !s.pegawaiId))), [sales, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser, users]);
+  const filteredExpenses = useMemo(() => expenses.filter((e) => getSafeDate(e.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || normText(e.cabang) === normText(effectiveFilterCabang)) && (!pegawaiAktif || milikPegawai(e, pegawaiAktif) || (!isAdmin && !String(e.pegawai || "").trim() && !e.pegawaiId))), [expenses, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser, users]);
   
   const totalEsTerjual = formatQty(filteredSales.reduce((a, s) => a + parseFloat(s.jumlah || 0), 0));
   const totalPemasukan = filteredSales.reduce((a, s) => a + s.total, 0);
@@ -1623,7 +1644,7 @@ svg text{font-size:14px !important}
                         )
                       ) : (
                         <tr key={item.id} className="hover:bg-slate-50">
-                          <td className="px-5 py-4 font-bold text-sky-600">{item.cabang}<div className="text-[11px] font-medium text-slate-500">{item.pegawai || "-"}</div></td>
+                          <td className="px-5 py-4 font-bold text-sky-600">{item.cabang}<div className="text-[11px] font-medium text-slate-500">{(item.pegawaiId && cariPegawai(item.pegawaiId)?.nama) || item.pegawai || "-"}</div></td>
                           <td className="px-5 py-4 font-medium">
                             {histTab === "pemasukan" ? item.customer : item.kategori}
                             {histTab === "pemasukan" && item.diskon > 0 && <div className="text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded inline-block mt-1">Diskon: {formatRupiah(item.diskon)}</div>}
