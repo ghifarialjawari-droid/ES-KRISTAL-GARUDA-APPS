@@ -405,9 +405,9 @@ export default function App() {
   const [formTab, setFormTab] = useState("penjualan");
   const [histTab, setHistTab] = useState("pemasukan");
 
-  const emptySaleForm = { id: null, tanggal: todayStr(), cabang: "", customer: "", jumlah: "", hargaEs: "", ongkir: "", diskon: "" };
+  const emptySaleForm = { id: null, tanggal: todayStr(), cabang: "", pegawai: "", customer: "", jumlah: "", hargaEs: "", ongkir: "", diskon: "" };
   const [saleForm, setSaleForm] = useState(emptySaleForm);
-  const emptyExpenseForm = { id: null, tanggal: todayStr(), cabang: "", kategori: "", jumlah: "", keterangan: "", fotoBukti: "" };
+  const emptyExpenseForm = { id: null, tanggal: todayStr(), cabang: "", pegawai: "", kategori: "", jumlah: "", keterangan: "", fotoBukti: "" };
   const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
   const [expensePhotoFile, setExpensePhotoFile] = useState(null);
   const [expensePhotoPreview, setExpensePhotoPreview] = useState("");
@@ -689,14 +689,14 @@ export default function App() {
           if (name && name.trim()) {
             const trimmed = name.trim();
             setCabangList((prev) => prev.includes(trimmed) ? prev : [...prev, trimmed]);
-            setForm({ ...form, cabang: trimmed });
+            setForm({ ...form, cabang: trimmed, pegawai: "" });
             if (syncFilterSetter) syncFilterSetter(trimmed);
           }
           closeDialog();
         }
       });
     } else {
-      setForm({ ...form, cabang: val });
+      setForm({ ...form, cabang: val, pegawai: "" });
       if (syncFilterSetter) syncFilterSetter(val);
     }
   };
@@ -717,6 +717,7 @@ export default function App() {
   };
 
   const addSale = () => {
+    if (isAdmin && !saleForm.pegawai) return showAlert("Pilih pegawai yang melakukan penjualan ini.", "Data Belum Lengkap", true);
     const cabangValue = isAdmin ? saleForm.cabang : myCabang;
     if (!cabangValue || !saleForm.jumlah || parseFloat(saleForm.jumlah) <= 0) {
       return showAlert("Harap lengkapi isian Cabang dan Jumlah Qty.", "Data Belum Lengkap", true);
@@ -732,7 +733,7 @@ export default function App() {
       tanggal: saleForm.tanggal,
       cabang: cabangValue,
       customer: saleForm.customer.trim() || "-",
-      pegawai: currentUser.nama,
+      pegawai: isAdmin ? saleForm.pegawai : currentUser.nama,
       jumlah,
       hargaEs,
       ongkir,
@@ -775,6 +776,7 @@ export default function App() {
     let label = "Data";
 
     if (table === "Sales") {
+      if (isAdmin && !draft.pegawai) return showAlert("Pilih pegawai untuk transaksi ini.", "Data Belum Lengkap", true);
       const cabangValue = isAdmin ? draft.cabang : myCabang;
       if (!cabangValue || !draft.jumlah || parseFloat(draft.jumlah) <= 0) return showAlert("Cabang dan Qty wajib diisi.", "Data Belum Lengkap", true);
       const hargaEs = parseFloat(draft.hargaEs) || 0;
@@ -783,6 +785,7 @@ export default function App() {
       item = { ...draft, cabang: cabangValue, customer: String(draft.customer || "").trim() || "-", jumlah: formatQty(draft.jumlah), hargaEs, ongkir, diskon, total: hargaEs + ongkir - diskon };
       label = "Penjualan";
     } else if (table === "Expenses") {
+      if (isAdmin && !draft.pegawai) return showAlert("Pilih pegawai untuk pengeluaran ini.", "Data Belum Lengkap", true);
       const cabangValue = isAdmin ? draft.cabang : myCabang;
       if (!cabangValue || !draft.kategori || !draft.jumlah || parseFloat(draft.jumlah) <= 0) return showAlert("Cabang, Kategori, dan Nominal wajib diisi.", "Data Belum Lengkap", true);
       let fotoUrl = draft.fotoBukti || "";
@@ -851,6 +854,7 @@ export default function App() {
   };
 
   const addExpense = async () => {
+    if (isAdmin && !expenseForm.pegawai) return showAlert("Pilih pegawai yang mencatat pengeluaran ini.", "Data Belum Lengkap", true);
     const cabangValue = isAdmin ? expenseForm.cabang : myCabang;
     if (!cabangValue || !expenseForm.kategori || !expenseForm.jumlah || parseFloat(expenseForm.jumlah) <= 0) {
       return showAlert("Harap lengkapi isian Cabang, Kategori, dan Nominal.", "Data Belum Lengkap", true);
@@ -883,7 +887,7 @@ export default function App() {
       tanggal: expenseForm.tanggal, cabang: cabangValue, kategori: expenseForm.kategori,
       jumlah: parseFloat(expenseForm.jumlah) || 0, keterangan: expenseForm.keterangan.trim() || "-",
       fotoBukti: fotoUrl,
-      pegawai: currentUser.nama,
+      pegawai: isAdmin ? expenseForm.pegawai : currentUser.nama,
     };
     dbSave("Expenses", newExp, "Pengeluaran");
     if (fotoGagalUpload) {
@@ -928,6 +932,10 @@ export default function App() {
 
   const effectiveFilterCabang = isAdmin ? filterCabang : myCabang;
   const pegawaiOptions = useMemo(() => users.filter((u) => u.role !== "admin" && (effectiveFilterCabang === "Semua Cabang" || u.cabang === effectiveFilterCabang)).map((u) => u.nama), [users, effectiveFilterCabang]);
+  const pegawaiByCabang = (cabang, current = "") => {
+    const list = users.filter((u) => u.role !== "admin" && u.cabang === cabang).map((u) => u.nama);
+    return current && !list.includes(current) ? [...list, current] : list;
+  };
   const filteredSales = useMemo(() => sales.filter((s) => getSafeDate(s.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || s.cabang === effectiveFilterCabang) && (isAdmin ? (filterPegawai === "Semua Pegawai" || s.pegawai === filterPegawai) : s.pegawai === currentUser?.nama)), [sales, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser]);
   const filteredExpenses = useMemo(() => expenses.filter((e) => getSafeDate(e.tanggal) === filterDate && (effectiveFilterCabang === "Semua Cabang" || e.cabang === effectiveFilterCabang) && (isAdmin ? (filterPegawai === "Semua Pegawai" || e.pegawai === filterPegawai) : e.pegawai === currentUser?.nama)), [expenses, filterDate, effectiveFilterCabang, filterPegawai, isAdmin, currentUser]);
   
@@ -1362,7 +1370,7 @@ svg text{font-size:14px !important}
               <div><label className={labelClass}>Tanggal</label><input type="date" value={filterDate} onChange={(e) => { const v = e.target.value; setFilterDate(v); setSaleForm((prev) => ({ ...prev, tanggal: v })); setExpenseForm((prev) => ({ ...prev, tanggal: v })); }} className={inputClass} /></div>
               <div><label className={labelClass}>Cabang</label>
                 {isAdmin ? (
-                  <select value={filterCabang} onChange={(e) => { const v = e.target.value; setFilterCabang(v); setFilterPegawai("Semua Pegawai"); if (v !== "Semua Cabang") { setSaleForm((prev) => ({ ...prev, cabang: v })); setExpenseForm((prev) => ({ ...prev, cabang: v })); } }} className={`${inputClass} min-w-[150px]`}><option>Semua Cabang</option>{cabangList.map((c) => (<option key={c}>{c}</option>))}</select>
+                  <select value={filterCabang} onChange={(e) => { const v = e.target.value; setFilterCabang(v); setFilterPegawai("Semua Pegawai"); if (v !== "Semua Cabang") { setSaleForm((prev) => ({ ...prev, cabang: v, pegawai: "" })); setExpenseForm((prev) => ({ ...prev, cabang: v, pegawai: "" })); } }} className={`${inputClass} min-w-[150px]`}><option>Semua Cabang</option>{cabangList.map((c) => (<option key={c}>{c}</option>))}</select>
                 ) : (<div className={`${inputClass} bg-slate-100 text-slate-500`}>{myCabang}</div>)}
               </div>
               {isAdmin && (
@@ -1434,7 +1442,7 @@ svg text{font-size:14px !important}
                           ) : (<input type="text" value={myCabang} disabled className={`${inputClass} bg-slate-100 text-slate-400`} />)}
                         </div>
                       </div>
-                      <div><label className={labelClass}>Pegawai</label><input type="text" value={currentUser?.nama || ""} disabled className={`${inputClass} bg-slate-100 text-slate-500`} /></div>
+                      <div><label className={labelClass}>Pegawai</label>{isAdmin ? (<select value={saleForm.pegawai} onChange={(e) => setSaleForm({ ...saleForm, pegawai: e.target.value })} className={inputClass}><option value="">Pilih pegawai...</option>{pegawaiByCabang(saleForm.cabang, saleForm.pegawai).map((p) => (<option key={p} value={p}>{p}</option>))}</select>) : (<input type="text" value={currentUser?.nama || ""} disabled className={`${inputClass} bg-slate-100 text-slate-500`} />)}</div>
                       <div><label className={labelClass}>Customer</label><input type="text" placeholder="Mis: Warung Bu Ani" value={saleForm.customer} onChange={(e) => setSaleForm({ ...saleForm, customer: e.target.value })} className={inputClass} /></div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -1479,7 +1487,7 @@ svg text{font-size:14px !important}
                       </div>
                       <div><label className={labelClass}>Nominal (Rp)</label><input type="number" value={expenseForm.jumlah} onChange={(e) => setExpenseForm({ ...expenseForm, jumlah: e.target.value })} className={inputClass} /></div>
                       <div><label className={labelClass}>Keterangan</label><input type="text" value={expenseForm.keterangan} onChange={(e) => setExpenseForm({ ...expenseForm, keterangan: e.target.value })} className={inputClass} /></div>
-                      <div><label className={labelClass}>Pegawai</label><input type="text" value={currentUser?.nama || ""} disabled className={`${inputClass} bg-slate-100 text-slate-500`} /></div>
+                      <div><label className={labelClass}>Pegawai</label>{isAdmin ? (<select value={expenseForm.pegawai} onChange={(e) => setExpenseForm({ ...expenseForm, pegawai: e.target.value })} className={inputClass}><option value="">Pilih pegawai...</option>{pegawaiByCabang(expenseForm.cabang, expenseForm.pegawai).map((p) => (<option key={p} value={p}>{p}</option>))}</select>) : (<input type="text" value={currentUser?.nama || ""} disabled className={`${inputClass} bg-slate-100 text-slate-500`} />)}</div>
                       <div>
                         <label className={labelClass}>Foto Bukti <span className="normal-case font-medium text-slate-400">(opsional)</span></label>
                         {(expensePhotoPreview || expenseForm.fotoBukti) ? (
@@ -1535,6 +1543,7 @@ svg text{font-size:14px !important}
                                 </select>
                               ) : (<input value={myCabang} disabled className={`${INLINE_INPUT} bg-slate-100`} />)}
                             </EditField>
+                            <EditField label="Pegawai">{isAdmin ? (<select value={inlineEdit.draft.pegawai || ""} onChange={(e) => setDraft({ pegawai: e.target.value })} className={INLINE_INPUT}><option value="">Pilih...</option>{pegawaiByCabang(inlineEdit.draft.cabang, inlineEdit.draft.pegawai).map((p) => (<option key={p} value={p}>{p}</option>))}</select>) : (<input value={inlineEdit.draft.pegawai || ""} disabled className={`${INLINE_INPUT} bg-slate-100`} />)}</EditField>
                             <EditField label="Customer"><input type="text" value={inlineEdit.draft.customer} onChange={(e) => setDraft({ customer: e.target.value })} className={INLINE_INPUT} /></EditField>
                             <EditField label="Qty (Bks)"><input type="number" step="0.01" value={inlineEdit.draft.jumlah} onChange={(e) => { const v = e.target.value; setDraft({ jumlah: v, hargaEs: v ? hitungHargaEs(v) : "" }); }} className={INLINE_INPUT} /></EditField>
                             <EditField label="Harga (Rp)"><input type="number" value={inlineEdit.draft.hargaEs} onChange={(e) => setDraft({ hargaEs: e.target.value })} className={INLINE_INPUT} /></EditField>
@@ -1560,6 +1569,7 @@ svg text{font-size:14px !important}
                             </EditField>
                             <EditField label="Nominal (Rp)"><input type="number" value={inlineEdit.draft.jumlah} onChange={(e) => setDraft({ jumlah: e.target.value })} className={INLINE_INPUT} /></EditField>
                             <EditField label="Keterangan"><input type="text" value={inlineEdit.draft.keterangan} onChange={(e) => setDraft({ keterangan: e.target.value })} className={INLINE_INPUT} /></EditField>
+                            <EditField label="Pegawai">{isAdmin ? (<select value={inlineEdit.draft.pegawai || ""} onChange={(e) => setDraft({ pegawai: e.target.value })} className={INLINE_INPUT}><option value="">Pilih...</option>{pegawaiByCabang(inlineEdit.draft.cabang, inlineEdit.draft.pegawai).map((p) => (<option key={p} value={p}>{p}</option>))}</select>) : (<input value={inlineEdit.draft.pegawai || ""} disabled className={`${INLINE_INPUT} bg-slate-100`} />)}</EditField>
                             <EditField label="Foto Bukti">
                               {(inlineEdit.draft._newPhoto || inlineEdit.draft.fotoBukti) ? (
                                 <div className="relative w-fit">
@@ -1577,7 +1587,7 @@ svg text{font-size:14px !important}
                         )
                       ) : (
                         <tr key={item.id} className="hover:bg-slate-50">
-                          <td className="px-5 py-4 font-bold text-sky-600">{item.cabang}</td>
+                          <td className="px-5 py-4 font-bold text-sky-600">{item.cabang}<div className="text-[11px] font-medium text-slate-500">{item.pegawai || "-"}</div></td>
                           <td className="px-5 py-4 font-medium">
                             {histTab === "pemasukan" ? item.customer : item.kategori}
                             {histTab === "pemasukan" && item.diskon > 0 && <div className="text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded inline-block mt-1">Diskon: {formatRupiah(item.diskon)}</div>}
