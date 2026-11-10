@@ -421,6 +421,7 @@ export default function App() {
   const [inlineEdit, setInlineEdit] = useState(null);
   // Filter sumber pengeluaran untuk pie chart Laporan: semua | pegawai | owner
   const [pieSource, setPieSource] = useState("semua");
+  const [pieCabang, setPieCabang] = useState("Semua Cabang");
   
   const [reportMonth, setReportMonth] = useState(currentMonthStr());
 
@@ -984,10 +985,10 @@ export default function App() {
       map[key].value += jumlah;
     };
     if (pieSource !== "owner") {
-      expenses.filter((e) => getSafeDate(e.tanggal).startsWith(reportMonth)).forEach((e) => { const v = parseFloat(e.jumlah) || 0; sumPegawai += v; add(e.kategori, v); });
+      expenses.filter((e) => getSafeDate(e.tanggal).startsWith(reportMonth) && (pieCabang === "Semua Cabang" || e.cabang === pieCabang)).forEach((e) => { const v = parseFloat(e.jumlah) || 0; sumPegawai += v; add(e.kategori, v); });
     }
     if (pieSource !== "pegawai") {
-      ownerNotes.filter((n) => n.jenis === "keluar" && getSafeDate(n.tanggal).startsWith(reportMonth)).forEach((n) => { const v = parseFloat(n.jumlah) || 0; sumOwner += v; add(n.kategori, v); });
+      ownerNotes.filter((n) => n.jenis === "keluar" && getSafeDate(n.tanggal).startsWith(reportMonth) && (pieCabang === "Semua Cabang" || n.cabang === pieCabang)).forEach((n) => { const v = parseFloat(n.jumlah) || 0; sumOwner += v; add(n.kategori, v); });
     }
     const list = Object.values(map).filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
     const total = list.reduce((a, d) => a + d.value, 0);
@@ -995,7 +996,163 @@ export default function App() {
       total, sumPegawai, sumOwner,
       items: list.map((d, i) => ({ ...d, color: PIE_COLORS[i % PIE_COLORS.length], pct: total ? (d.value / total) * 100 : 0 })),
     };
-  }, [expenses, ownerNotes, reportMonth, pieSource]);
+  }, [expenses, ownerNotes, reportMonth, pieSource, pieCabang]);
+
+  // ==========================================
+  // DOWNLOAD LAPORAN LENGKAP (file HTML)
+  // Isi: ringkasan semua depot, rincian per depot (+ biaya umum), dan
+  // grafik harian pendapatan vs pengeluaran untuk setiap depot.
+  // File bisa dibuka di browser dan dicetak sebagai PDF.
+  // ==========================================
+  const downloadLaporanHtml = () => {
+    const bulan = reportMonth;
+    const inBulan = (tgl) => getSafeDate(tgl).startsWith(bulan);
+    const salesBulan = sales.filter((s) => inBulan(s.tanggal));
+    const expBulan = expenses.filter((e) => inBulan(e.tanggal));
+    const ownerKeluarBulan = ownerNotes.filter((n) => n.jenis === "keluar" && inBulan(n.tanggal));
+    if (salesBulan.length === 0 && expBulan.length === 0 && ownerKeluarBulan.length === 0) {
+      return showAlert("Tidak ada data untuk bulan " + bulan + ".", "Kosong", true);
+    }
+
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const shortNum = (v) => (v >= 1000000 ? (v / 1000000).toFixed(1) + "jt" : v >= 1000 ? Math.round(v / 1000) + "rb" : String(Math.round(v)));
+    const sumJumlah = (arr) => arr.reduce((a, x) => a + (parseFloat(x.jumlah) || 0), 0);
+    const sumTotal = (arr) => arr.reduce((a, s) => a + (parseFloat(s.total) || 0), 0);
+    const sumQty = (arr) => formatQty(arr.reduce((a, s) => a + (parseFloat(s.jumlah) || 0), 0));
+
+    const [tahun, bln] = bulan.split("-").map(Number);
+    const jumlahHari = new Date(tahun, bln, 0).getDate() || 0;
+    const hariList = Array.from({ length: jumlahHari }, (_, i) => `${bulan}-${pad(i + 1)}`);
+
+    // Grafik batang harian (SVG murni, tanpa library)
+    const barSvg = (rows) => {
+      const W = 640, H = 230, PL = 52, PR = 10, PT = 10, PB = 26;
+      const max = Math.max(1, ...rows.map((r) => Math.max(r.pend, r.peng)));
+      const iw = W - PL - PR, ih = H - PT - PB;
+      const slot = iw / Math.max(rows.length, 1);
+      const bw = Math.max(2, slot * 0.36);
+      let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+      for (let i = 0; i <= 4; i++) {
+        const y = PT + ih - (ih * i) / 4;
+        s += `<line x1="${PL}" x2="${W - PR}" y1="${y}" y2="${y}" stroke="#e2e8f0"/>`;
+        s += `<text x="${PL - 6}" y="${y + 4}" font-size="10" text-anchor="end" fill="#64748b">${shortNum((max * i) / 4)}</text>`;
+      }
+      rows.forEach((r, i) => {
+        const x = PL + i * slot + slot * 0.12;
+        const h1 = (ih * r.pend) / max, h2 = (ih * r.peng) / max;
+        s += `<rect x="${x.toFixed(1)}" y="${(PT + ih - h1).toFixed(1)}" width="${bw.toFixed(1)}" height="${h1.toFixed(1)}" fill="#0ea5e9"><title>Tgl ${r.label} pendapatan ${formatRupiah(r.pend)}</title></rect>`;
+        s += `<rect x="${(x + bw + 1).toFixed(1)}" y="${(PT + ih - h2).toFixed(1)}" width="${bw.toFixed(1)}" height="${h2.toFixed(1)}" fill="#f97316"><title>Tgl ${r.label} pengeluaran ${formatRupiah(r.peng)}</title></rect>`;
+        s += `<text x="${(x + bw).toFixed(1)}" y="${H - 8}" font-size="9" text-anchor="middle" fill="#64748b">${r.label}</text>`;
+      });
+      return s + "</svg>";
+    };
+
+    const perDepot = cabangList.map((cabang) => {
+      const cSales = salesBulan.filter((s) => s.cabang === cabang);
+      const cExp = expBulan.filter((e) => e.cabang === cabang);
+      const cOwn = ownerKeluarBulan.filter((n) => n.cabang === cabang);
+      const sRow = susutSummary.rows.find((r) => r.cabang === cabang);
+      const pengeluaranPegawai = sumJumlah(cExp);
+      const pengeluaranOwner = sumJumlah(cOwn);
+      const harian = hariList.map((tgl, i) => ({
+        label: String(i + 1),
+        pend: sumTotal(cSales.filter((s) => getSafeDate(s.tanggal) === tgl)),
+        peng: sumJumlah(cExp.filter((e) => getSafeDate(e.tanggal) === tgl)) + sumJumlah(cOwn.filter((n) => getSafeDate(n.tanggal) === tgl)),
+      }));
+      return {
+        label: cabang,
+        pendapatan: sumTotal(cSales),
+        terjual: sumQty(cSales),
+        customer: new Set(cSales.map((s) => s.customer)).size,
+        pengeluaranPegawai,
+        pengeluaranOwner,
+        totalPengeluaran: pengeluaranPegawai + pengeluaranOwner,
+        susut: sRow ? sRow.susut : 0,
+        loss: sRow ? sRow.loss : 0,
+        harian,
+      };
+    });
+
+    const biayaUmum = sumJumlah(ownerKeluarBulan.filter((n) => n.cabang === "Semua Cabang" || !n.cabang));
+    const pengeluaranPegawaiTotal = sumJumlah(expBulan);
+    const pengeluaranOwnerTotal = sumJumlah(ownerKeluarBulan);
+    const totalRow = {
+      label: "TOTAL SEMUA DEPOT",
+      pendapatan: sumTotal(salesBulan),
+      terjual: sumQty(salesBulan),
+      customer: perDepot.reduce((a, d) => a + d.customer, 0),
+      pengeluaranPegawai: pengeluaranPegawaiTotal,
+      pengeluaranOwner: pengeluaranOwnerTotal,
+      totalPengeluaran: pengeluaranPegawaiTotal + pengeluaranOwnerTotal,
+      susut: susutSummary.totalSusut,
+      loss: susutSummary.totalLoss,
+    };
+    const umumRow = { label: "Biaya Umum (Semua Cabang)", pendapatan: 0, terjual: 0, customer: "-", pengeluaranPegawai: 0, pengeluaranOwner: biayaUmum, totalPengeluaran: biayaUmum, susut: 0, loss: 0 };
+
+    const baris = (d, cls = "") => `<tr class="${cls}"><td class="depot">${esc(d.label)}</td><td>${formatRupiah(d.pendapatan)}</td><td>${formatQty(d.terjual)}</td><td>${d.customer}</td><td>${formatRupiah(d.pengeluaranPegawai)}</td><td>${formatRupiah(d.pengeluaranOwner)}</td><td>${formatRupiah(d.totalPengeluaran)}</td><td class="${d.susut > 0 ? "neg" : d.susut < 0 ? "pos" : ""}">${d.susut > 0 ? "+" : ""}${formatQty(d.susut)}</td><td>${formatRupiah(d.loss)}</td></tr>`;
+
+    const kpi = [
+      ["Total Pendapatan", formatRupiah(totalRow.pendapatan)],
+      ["Es Terjual", formatQty(totalRow.terjual) + " Bks"],
+      ["Total Pengeluaran", formatRupiah(totalRow.totalPengeluaran)],
+      ["Susut", (totalRow.susut > 0 ? "+" : "") + formatQty(totalRow.susut) + " Bks"],
+      ["Loss (Rp)", formatRupiah(totalRow.loss)],
+      ["Jumlah Customer", String(totalRow.customer)],
+    ];
+
+    const kartuDepot = perDepot.map((d) => `<section class="card"><h3>${esc(d.label)}</h3><div class="mini"><span>Pendapatan <b>${formatRupiah(d.pendapatan)}</b></span><span>Terjual <b>${formatQty(d.terjual)} Bks</b></span><span>Pengeluaran <b>${formatRupiah(d.totalPengeluaran)}</b></span><span>Susut <b>${d.susut > 0 ? "+" : ""}${formatQty(d.susut)} Bks</b></span><span>Customer <b>${d.customer}</b></span></div><div class="legend"><i style="background:#0ea5e9"></i>Pendapatan harian<i style="background:#f97316"></i>Pengeluaran harian</div>${barSvg(d.harian)}</section>`).join("");
+
+    const html = `<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Laporan Es Kristal Garuda ${esc(bulan)}</title>
+<style>
+body{font-family:Arial,Helvetica,sans-serif;background:#f8fafc;color:#1e293b;margin:0;padding:24px}
+h1{margin:0 0 4px;font-size:22px}
+h2{font-size:17px;margin:28px 0 12px;border-bottom:2px solid #e2e8f0;padding-bottom:6px}
+h3{margin:0 0 10px;font-size:15px;color:#0369a1}
+.sub{color:#64748b;font-size:12px;margin-bottom:18px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px}
+.kpi small{display:block;color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:6px}
+.kpi b{font-size:17px}
+.wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;font-size:12px}
+th,td{padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{background:#f1f5f9;font-size:11px;text-transform:uppercase;color:#475569}
+td.depot{font-weight:700;color:#0369a1}
+tr.total td{background:#1e293b;color:#fff;font-weight:700}
+.neg{color:#dc2626;font-weight:700}
+.pos{color:#059669;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px}
+.mini{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#64748b;margin-bottom:10px}
+.mini b{color:#1e293b}
+.legend{font-size:11px;color:#64748b;margin-bottom:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 10px}
+.legend i:first-child{margin-left:0}
+svg{display:block;width:100%;height:auto}
+@media print{body{padding:8px;background:#fff}.grid{grid-template-columns:1fr 1fr}}
+</style></head><body>
+<h1>Laporan Es Kristal Garuda</h1>
+<div class="sub">Periode: ${esc(bulan)} &middot; Dibuat: ${esc(new Date().toLocaleString("id-ID"))}</div>
+<h2>Ringkasan Semua Depot</h2>
+<div class="kpis">${kpi.map(([l, v]) => `<div class="kpi"><small>${l}</small><b>${v}</b></div>`).join("")}</div>
+<h2>Rincian per Depot</h2>
+<div class="wrap"><table>
+<thead><tr><th>Depot</th><th>Pendapatan</th><th>Es Terjual</th><th>Customer</th><th>Peng. Pegawai</th><th>Peng. Kas Owner</th><th>Total Pengeluaran</th><th>Susut (Bks)</th><th>Loss (Rp)</th></tr></thead>
+<tbody>${perDepot.map((d) => baris(d)).join("")}${biayaUmum > 0 ? baris(umumRow) : ""}${baris(totalRow, "total")}</tbody>
+</table></div>
+<h2>Grafik per Depot (Harian)</h2>
+<div class="grid">${kartuDepot}</div>
+</body></html>`;
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Laporan_Lengkap_Es_Garuda_${bulan}.html`;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  };
 
   const exportCSV = (month) => {
     const monthSales = sales.filter((s) => getSafeDate(s.tanggal).startsWith(month));
@@ -1547,7 +1704,8 @@ export default function App() {
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5">
               <div><label className={labelClass}>Bulan</label><input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} className={inputClass} /></div>
-              <button onClick={() => window.print()} className="ml-auto mt-auto bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex gap-2"><Printer className="w-4 h-4" /> Cetak PDF</button>
+              <button onClick={downloadLaporanHtml} className="ml-auto mt-auto bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex gap-2"><Download className="w-4 h-4" /> Download Laporan</button>
+              <button onClick={() => window.print()} className="mt-auto bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex gap-2"><Printer className="w-4 h-4" /> Cetak PDF</button>
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
               <div className="p-5 border-b border-slate-200 bg-slate-50"><h3 className="font-black text-lg">Ringkasan Omset - {reportMonth}</h3></div>
@@ -1607,9 +1765,10 @@ export default function App() {
               <div className="p-5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="font-black text-lg">Analisa Pengeluaran per Kategori - {reportMonth}</h3>
-                  <p className="text-xs text-slate-500 mt-1">Gabungan pengeluaran Pegawai ({formatRupiah(expenseAnalysis.sumPegawai)}) dan Owner/Arus Kas ({formatRupiah(expenseAnalysis.sumOwner)}), semua cabang.</p>
+                  <p className="text-xs text-slate-500 mt-1">Gabungan pengeluaran Pegawai ({formatRupiah(expenseAnalysis.sumPegawai)}) dan Owner/Arus Kas ({formatRupiah(expenseAnalysis.sumOwner)}), {pieCabang === "Semua Cabang" ? "semua cabang" : pieCabang}.</p>
                 </div>
                 <div className="flex gap-1.5 print:hidden">
+                  <select value={pieCabang} onChange={(e) => setPieCabang(e.target.value)} className="border-2 border-slate-200 rounded-lg px-2 py-1 text-xs font-bold bg-white"><option>Semua Cabang</option>{cabangList.map((c) => (<option key={c}>{c}</option>))}</select>
                   {[["semua", "Semua"], ["pegawai", "Pegawai"], ["owner", "Owner"]].map(([key, label]) => (
                     <button key={key} onClick={() => setPieSource(key)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${pieSource === key ? "bg-sky-500 text-white" : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-100"}`}>{label}</button>
                   ))}
