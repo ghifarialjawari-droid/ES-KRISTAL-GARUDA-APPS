@@ -1089,18 +1089,19 @@ export default function App() {
     };
     const umumRow = { label: "Biaya Umum (Semua Cabang)", pendapatan: 0, terjual: 0, customer: "-", pengeluaranPegawai: 0, pengeluaranOwner: biayaUmum, totalPengeluaran: biayaUmum, susut: 0, loss: 0 };
 
-    const baris = (d, cls = "") => `<tr class="${cls}"><td class="depot">${esc(d.label)}</td><td>${formatRupiah(d.pendapatan)}</td><td>${formatQty(d.terjual)}</td><td>${d.customer}</td><td>${formatRupiah(d.pengeluaranPegawai)}</td><td>${formatRupiah(d.pengeluaranOwner)}</td><td>${formatRupiah(d.totalPengeluaran)}</td><td class="${d.susut > 0 ? "neg" : d.susut < 0 ? "pos" : ""}">${d.susut > 0 ? "+" : ""}${formatQty(d.susut)}</td><td>${formatRupiah(d.loss)}</td></tr>`;
+    const baris = (d, cls = "") => `<tr class="${cls}"><td class="depot">${esc(d.label)}</td><td>${formatRupiah(d.pendapatan)}</td><td>${formatQty(d.terjual)}</td><td>${d.customer}</td><td>${formatRupiah(d.pengeluaranPegawai)}</td><td>${formatRupiah(d.pengeluaranOwner)}</td><td>${formatRupiah(d.totalPengeluaran)}</td><td class="${d.pendapatan - d.totalPengeluaran < 0 ? "neg" : "pos"}">${formatRupiah(d.pendapatan - d.totalPengeluaran)}</td><td class="${d.susut > 0 ? "neg" : d.susut < 0 ? "pos" : ""}">${d.susut > 0 ? "+" : ""}${formatQty(d.susut)}</td><td>${formatRupiah(d.loss)}</td></tr>`;
 
     const kpi = [
       ["Total Pendapatan", formatRupiah(totalRow.pendapatan)],
       ["Es Terjual", formatQty(totalRow.terjual) + " Bks"],
       ["Total Pengeluaran", formatRupiah(totalRow.totalPengeluaran)],
+      ["Laba Bersih", formatRupiah(totalRow.pendapatan - totalRow.totalPengeluaran)],
       ["Susut", (totalRow.susut > 0 ? "+" : "") + formatQty(totalRow.susut) + " Bks"],
       ["Loss (Rp)", formatRupiah(totalRow.loss)],
       ["Jumlah Customer", String(totalRow.customer)],
     ];
 
-    const kartuDepot = perDepot.map((d) => `<section class="card"><h3>${esc(d.label)}</h3><div class="mini"><span>Pendapatan <b>${formatRupiah(d.pendapatan)}</b></span><span>Terjual <b>${formatQty(d.terjual)} Bks</b></span><span>Pengeluaran <b>${formatRupiah(d.totalPengeluaran)}</b></span><span>Susut <b>${d.susut > 0 ? "+" : ""}${formatQty(d.susut)} Bks</b></span><span>Customer <b>${d.customer}</b></span></div><div class="legend"><i style="background:#0ea5e9"></i>Pendapatan harian<i style="background:#f97316"></i>Pengeluaran harian</div>${barSvg(d.harian)}</section>`).join("");
+    const kartuDepot = perDepot.map((d) => `<section class="card"><h3>${esc(d.label)}</h3><div class="mini"><span>Pendapatan <b>${formatRupiah(d.pendapatan)}</b></span><span>Terjual <b>${formatQty(d.terjual)} Bks</b></span><span>Pengeluaran <b>${formatRupiah(d.totalPengeluaran)}</b></span><span>Laba Bersih <b>${formatRupiah(d.pendapatan - d.totalPengeluaran)}</b></span><span>Susut <b>${d.susut > 0 ? "+" : ""}${formatQty(d.susut)} Bks</b></span><span>Customer <b>${d.customer}</b></span></div><div class="legend"><i style="background:#0ea5e9"></i>Pendapatan harian<i style="background:#f97316"></i>Pengeluaran harian</div>${barSvg(d.harian)}</section>`).join("");
 
     const html = `<!doctype html>
 <html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1132,7 +1133,8 @@ tr.total td{background:#1e293b;color:#fff;font-weight:700}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 10px}
 .legend i:first-child{margin-left:0}
 svg{display:block;width:100%;height:auto}
-@media print{body{padding:8px;background:#fff}.grid{grid-template-columns:1fr 1fr}}
+@page{size:A4;margin:12mm}
+@media print{body{padding:0;background:#fff}.grid{grid-template-columns:1fr 1fr}.card{break-inside:avoid}}
 </style></head><body>
 <h1>Laporan Es Kristal Garuda</h1>
 <div class="sub">Periode: ${esc(bulan)} &middot; Dibuat: ${esc(new Date().toLocaleString("id-ID"))}</div>
@@ -1140,18 +1142,19 @@ svg{display:block;width:100%;height:auto}
 <div class="kpis">${kpi.map(([l, v]) => `<div class="kpi"><small>${l}</small><b>${v}</b></div>`).join("")}</div>
 <h2>Rincian per Depot</h2>
 <div class="wrap"><table>
-<thead><tr><th>Depot</th><th>Pendapatan</th><th>Es Terjual</th><th>Customer</th><th>Peng. Pegawai</th><th>Peng. Kas Owner</th><th>Total Pengeluaran</th><th>Susut (Bks)</th><th>Loss (Rp)</th></tr></thead>
+<thead><tr><th>Depot</th><th>Pendapatan</th><th>Es Terjual</th><th>Customer</th><th>Peng. Pegawai</th><th>Peng. Kas Owner</th><th>Total Pengeluaran</th><th>Laba Bersih</th><th>Susut (Bks)</th><th>Loss (Rp)</th></tr></thead>
 <tbody>${perDepot.map((d) => baris(d)).join("")}${biayaUmum > 0 ? baris(umumRow) : ""}${baris(totalRow, "total")}</tbody>
 </table></div>
 <h2>Grafik per Depot (Harian)</h2>
 <div class="grid">${kartuDepot}</div>
 </body></html>`;
 
-    const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Laporan_Lengkap_Es_Garuda_${bulan}.html`;
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    const w = window.open("", "_blank");
+    if (!w) return showAlert("Izinkan pop-up di browser agar laporan bisa dibuka lalu disimpan sebagai PDF.", "Pop-up Diblokir", true);
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => { w.focus(); w.print(); }, 400);
   };
 
   const exportCSV = (month) => {
@@ -1704,7 +1707,7 @@ svg{display:block;width:100%;height:auto}
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 flex flex-wrap gap-5">
               <div><label className={labelClass}>Bulan</label><input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} className={inputClass} /></div>
-              <button onClick={downloadLaporanHtml} className="ml-auto mt-auto bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex gap-2"><Download className="w-4 h-4" /> Download Laporan</button>
+              <button onClick={downloadLaporanHtml} className="ml-auto mt-auto bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex gap-2"><Download className="w-4 h-4" /> Download PDF Laporan</button>
               <button onClick={() => window.print()} className="mt-auto bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex gap-2"><Printer className="w-4 h-4" /> Cetak PDF</button>
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
